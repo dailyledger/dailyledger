@@ -208,7 +208,7 @@ button, input, select, textarea {
 
 @media (min-width: 768px) {
   .app-tile-grid {
-    grid-template-columns: repeat(5, 1fr);
+    grid-template-columns: repeat(6, 1fr);
   }
 }
 
@@ -264,6 +264,10 @@ button, input, select, textarea {
 
 .app-tile-icon.tile-teal {
   background: linear-gradient(135deg, #2dd4bf, #0f766e);
+}
+
+.app-tile-icon.tile-slate {
+  background: linear-gradient(135deg, #94a3b8, #475569);
 }
 
 .btn {
@@ -632,6 +636,29 @@ button, input, select, textarea {
   border-bottom: none;
   border-top: 2px solid var(--color-border);
   background: var(--color-surface);
+}
+
+.sortable-th {
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.sortable-th:hover {
+  color: var(--brand-color);
+}
+
+.sort-icon {
+  vertical-align: -2px;
+  margin-left: 4px;
+}
+
+.report-table tbody tr.row-low-stock {
+  background: #fdf2f2;
+}
+
+.report-table tbody tr.row-low-stock:hover {
+  background: #fbe4e4;
 }
 
 .empty-state {

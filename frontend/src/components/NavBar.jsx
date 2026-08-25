@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { Home, Receipt, Package, HandCoins, Trash2, BarChart3, LogOut } from 'lucide-react';
+import { Home, Receipt, Package, HandCoins, Trash2, BarChart3, Boxes, LogOut } from 'lucide-react';
 import { useAuth } from '../AuthContext';
 
 const NAV_ITEMS = [
@@ -9,6 +9,7 @@ const NAV_ITEMS = [
   { to: '/credits', label: 'Credit', Icon: HandCoins },
   { to: '/spoilage', label: 'Spoilage', Icon: Trash2 },
   { to: '/reports', label: 'Reports', Icon: BarChart3 },
+  { to: '/inventory', label: 'Inventory', Icon: Boxes },
 ];
 
 export default function NavBar() {

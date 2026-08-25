@@ -1,0 +1,145 @@
+import { useEffect, useState, useMemo } from 'react';
+import { Boxes, ArrowUp, ArrowDown } from 'lucide-react';
+import { getItems } from '../api';
+import { formatCurrency } from '../format';
+
+const LOW_STOCK_THRESHOLD = 5;
+
+const COLUMNS = [
+  { key: 'item_name', label: 'Item Name' },
+  { key: 'unit_type', label: 'Unit' },
+  { key: 'stock_quantity', label: 'Stock Qty', numeric: true },
+  { key: 'last_cost_price', label: 'Cost Price', numeric: true },
+  { key: 'last_selling_price', label: 'Selling Price', numeric: true },
+  { key: 'stock_value', label: 'Stock Value', numeric: true },
+];
+
+export default function Inventory() {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [sortKey, setSortKey] = useState('item_name');
+  const [sortDir, setSortDir] = useState('asc');
+
+  useEffect(() => {
+    let cancelled = false;
+
+    getItems()
+      .then((data) => {
+        if (!cancelled) setItems(data);
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err.message);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const rows = useMemo(
+    () =>
+      items.map((item) => ({
+        ...item,
+        stock_value: (item.stock_quantity || 0) * (item.last_cost_price || 0),
+      })),
+    [items]
+  );
+
+  const sortedRows = useMemo(() => {
+    const sorted = [...rows].sort((a, b) => {
+      const aVal = a[sortKey];
+      const bVal = b[sortKey];
+      if (typeof aVal === 'string') {
+        return aVal.localeCompare(bVal);
+      }
+      return (aVal ?? 0) - (bVal ?? 0);
+    });
+    return sortDir === 'asc' ? sorted : sorted.reverse();
+  }, [rows, sortKey, sortDir]);
+
+  const totalValue = rows.reduce((sum, row) => sum + row.stock_value, 0);
+
+  const handleSort = (key) => {
+    if (key === sortKey) {
+      setSortDir((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortKey(key);
+      setSortDir('asc');
+    }
+  };
+
+  return (
+    <div>
+      <div className="reports-header">
+        <span className="reports-header-icon">
+          <Boxes size={22} strokeWidth={2} />
+        </span>
+        <h1 className="page-title">Inventory</h1>
+      </div>
+
+      {error && <div className="error-banner">{error}</div>}
+
+      {loading ? (
+        <div className="empty-state">Loading inventory...</div>
+      ) : rows.length === 0 ? (
+        <div className="empty-state">No items in catalog yet.</div>
+      ) : (
+        <>
+          <div className="table-scroll">
+            <table className="report-table">
+              <thead>
+                <tr>
+                  {COLUMNS.map((col) => (
+                    <th
+                      key={col.key}
+                      className={`sortable-th${col.numeric ? ' num' : ''}`}
+                      onClick={() => handleSort(col.key)}
+                    >
+                      {col.label}
+                      {sortKey === col.key &&
+                        (sortDir === 'asc' ? (
+                          <ArrowUp size={13} className="sort-icon" />
+                        ) : (
+                          <ArrowDown size={13} className="sort-icon" />
+                        ))}
+                    </th>
+                  ))}
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sortedRows.map((row) => {
+                  const lowStock = row.stock_quantity <= LOW_STOCK_THRESHOLD;
+                  return (
+                    <tr key={row._id} className={lowStock ? 'row-low-stock' : ''}>
+                      <td>{row.item_name}</td>
+                      <td>{row.unit_type}</td>
+                      <td className="num">{row.stock_quantity}</td>
+                      <td className="num">{formatCurrency(row.last_cost_price)}</td>
+                      <td className="num">{formatCurrency(row.last_selling_price)}</td>
+                      <td className="num">{formatCurrency(row.stock_value)}</td>
+                      <td>
+                        {lowStock && <span className="badge badge-unpaid">Low Stock</span>}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+              <tfoot>
+                <tr>
+                  <td colSpan={5}>Total Inventory Value</td>
+                  <td className="num">{formatCurrency(totalValue)}</td>
+                  <td />
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}

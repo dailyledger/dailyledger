@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Receipt, Package, HandCoins, Trash2, BarChart3 } from 'lucide-react';
+import { Receipt, Package, HandCoins, Trash2, BarChart3, Boxes } from 'lucide-react';
 import { getDashboardSummary } from '../api';
 import { formatCurrency } from '../format';
 
@@ -10,6 +10,7 @@ const QUICK_ACTIONS = [
   { to: '/credits/add', label: 'Credit', Icon: HandCoins, color: 'tile-green' },
   { to: '/spoilage/add', label: 'Spoilage', Icon: Trash2, color: 'tile-red' },
   { to: '/reports', label: 'Reports', Icon: BarChart3, color: 'tile-teal' },
+  { to: '/inventory', label: 'Inventory', Icon: Boxes, color: 'tile-slate' },
 ];
 
 export default function Home() {

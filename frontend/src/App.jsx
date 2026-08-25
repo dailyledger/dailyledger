@@ -12,6 +12,7 @@ import AddCredit from './pages/AddCredit';
 import SpoilageHistory from './pages/SpoilageHistory';
 import AddSpoilage from './pages/AddSpoilage';
 import Reports from './pages/Reports';
+import Inventory from './pages/Inventory';
 
 export default function App() {
   const { isAuthenticated } = useAuth();
@@ -39,6 +40,7 @@ export default function App() {
           <Route path="/spoilage/add" element={<AddSpoilage />} />
           <Route path="/spoilage/:id/edit" element={<AddSpoilage />} />
           <Route path="/reports" element={<Reports />} />
+          <Route path="/inventory" element={<Inventory />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>
