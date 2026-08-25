@@ -61,6 +61,12 @@ export default function AddPurchase() {
     setSuccess('');
     setSubmitting(true);
 
+    if (!isEditMode && (!form.selling_price || Number(form.selling_price) <= 0)) {
+      setError('Selling price is required and must be greater than 0.');
+      setSubmitting(false);
+      return;
+    }
+
     const payload = {
       vendor_name: form.vendor_name,
       item_name: form.item_name,
@@ -164,15 +170,16 @@ export default function AddPurchase() {
 
         {!isEditMode && (
           <div className="form-group">
-            <label className="form-label">Selling price (optional)</label>
+            <label className="form-label">Selling price</label>
             <input
               className="form-input"
               type="number"
-              min="0"
+              min="0.01"
               step="any"
               value={form.selling_price}
               onChange={(e) => update('selling_price', e.target.value)}
               placeholder="Sets the initial price to suggest at next sale"
+              required
             />
           </div>
         )}

@@ -32,7 +32,19 @@ export default function AddCredit() {
   const [loading, setLoading] = useState(isEditMode);
 
   useEffect(() => {
-    getItems().then(setItems).catch(() => setItems([]));
+    let cancelled = false;
+
+    getItems()
+      .then((data) => {
+        if (!cancelled) setItems(data);
+      })
+      .catch(() => {
+        if (!cancelled) setItems([]);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {

@@ -1,13 +1,48 @@
 import { createContext, useContext, useEffect, useMemo, useState, useCallback } from 'react';
 import { login as loginRequest, setAuthToken, clearAuthToken, setUnauthorizedHandler } from './api';
 
+const TOKEN_STORAGE_KEY = 'dailyledger_token';
+
+function isTokenValid(token) {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    return typeof payload.exp === 'number' && payload.exp * 1000 > Date.now();
+  } catch {
+    return false;
+  }
+}
+
+function readStoredToken() {
+  try {
+    const stored = localStorage.getItem(TOKEN_STORAGE_KEY);
+    if (stored && isTokenValid(stored)) {
+      return stored;
+    }
+    if (stored) {
+      localStorage.removeItem(TOKEN_STORAGE_KEY);
+    }
+  } catch {
+    // localStorage unavailable (private mode, disabled storage, etc.)
+  }
+  return null;
+}
+
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
-  const [token, setToken] = useState(null);
+  const [token, setToken] = useState(() => {
+    const stored = readStoredToken();
+    if (stored) setAuthToken(stored);
+    return stored;
+  });
 
   const logout = useCallback(() => {
     clearAuthToken();
+    try {
+      localStorage.removeItem(TOKEN_STORAGE_KEY);
+    } catch {
+      // ignore
+    }
     setToken(null);
   }, []);
 
@@ -18,6 +53,11 @@ export function AuthProvider({ children }) {
   const login = useCallback(async (username, password) => {
     const data = await loginRequest(username, password);
     setAuthToken(data.token);
+    try {
+      localStorage.setItem(TOKEN_STORAGE_KEY, data.token);
+    } catch {
+      // ignore
+    }
     setToken(data.token);
   }, []);
 

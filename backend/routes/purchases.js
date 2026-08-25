@@ -7,6 +7,11 @@ const buildDateFilter = require('../utils/dateFilter');
 router.post('/', async (req, res) => {
   try {
     const { item_name, unit_type, quantity, amount, selling_price } = req.body;
+
+    if (!selling_price || selling_price <= 0) {
+      return res.status(400).json({ error: 'Selling price is required and must be greater than 0' });
+    }
+
     const costPerUnit = quantity ? amount / quantity : 0;
 
     const existingItem = await Item.findOne({ item_name });
@@ -79,6 +84,50 @@ router.put('/:id', async (req, res) => {
     const purchase = await Purchase.findById(req.params.id);
     if (!purchase) {
       return res.status(404).json({ error: 'Purchase not found' });
+    }
+
+    const oldItemName = purchase.item_name;
+    const oldQuantity = purchase.quantity;
+
+    if (item_name === oldItemName) {
+      // Stock isn't tracked per-purchase (no lot tracking), so we can't know
+      // exactly how much of THIS purchase's stock was consumed. Instead, treat
+      // the edit as applying the quantity delta to the pooled stock, and reject
+      // if that would drive it negative — i.e. more has already been sold,
+      // credited, or spoiled than the new (lower) quantity would allow for.
+      const item = await Item.findOne({ item_name });
+      if (!item) {
+        return res.status(400).json({ error: `Item "${item_name}" not found in catalog` });
+      }
+
+      const delta = quantity - oldQuantity;
+      const newStock = item.stock_quantity + delta;
+
+      if (newStock < 0) {
+        const minQuantity = Math.max(0, oldQuantity - item.stock_quantity);
+        return res.status(400).json({
+          error: `Cannot reduce quantity to ${quantity} for "${item_name}": ${oldQuantity - item.stock_quantity} unit(s) originally added by this purchase have already been sold, credited, or spoiled. Minimum allowed quantity is ${minQuantity}.`,
+        });
+      }
+
+      await Item.updateOne({ item_name }, { $inc: { stock_quantity: delta } });
+    } else {
+      // Item was changed: give back the old item's contribution, then add to the new item.
+      const oldItem = await Item.findOne({ item_name: oldItemName });
+      if (oldItem) {
+        if (oldItem.stock_quantity - oldQuantity < 0) {
+          return res.status(400).json({
+            error: `Cannot move this purchase away from "${oldItemName}": removing its ${oldQuantity} unit(s) would drive "${oldItemName}" stock negative (some have already been sold, credited, or spoiled).`,
+          });
+        }
+        await Item.updateOne({ item_name: oldItemName }, { $inc: { stock_quantity: -oldQuantity } });
+      }
+
+      const newItem = await Item.findOne({ item_name });
+      if (!newItem) {
+        return res.status(400).json({ error: `Item "${item_name}" not found in catalog` });
+      }
+      await Item.updateOne({ item_name }, { $inc: { stock_quantity: quantity } });
     }
 
     purchase.vendor_name = vendor_name;

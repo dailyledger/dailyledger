@@ -11,6 +11,7 @@ export default function AddSpoilage() {
   const isEditMode = Boolean(id);
 
   const [items, setItems] = useState([]);
+  const [itemsLoading, setItemsLoading] = useState(true);
   const [form, setForm] = useState({
     item_name: '',
     quantity: '',
@@ -25,7 +26,22 @@ export default function AddSpoilage() {
   const [loading, setLoading] = useState(isEditMode);
 
   useEffect(() => {
-    getItems().then(setItems).catch(() => setItems([]));
+    let cancelled = false;
+
+    getItems()
+      .then((data) => {
+        if (!cancelled) setItems(data);
+      })
+      .catch(() => {
+        if (!cancelled) setItems([]);
+      })
+      .finally(() => {
+        if (!cancelled) setItemsLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -65,6 +81,11 @@ export default function AddSpoilage() {
       item_name: name,
       unit_type: match ? match.unit_type : prev.unit_type,
     }));
+  };
+
+  const getStockFor = (itemName) => {
+    const match = items.find((it) => it.item_name === itemName);
+    return match ? match.stock_quantity : null;
   };
 
   const handleSubmit = async (e) => {
@@ -119,7 +140,11 @@ export default function AddSpoilage() {
             required
           >
             <option value="" disabled>
-              {items.length ? 'Select an item' : 'No items in catalog yet'}
+              {itemsLoading
+                ? 'Loading items...'
+                : items.length
+                ? 'Select an item'
+                : 'No items in catalog yet'}
             </option>
             {items.map((it) => (
               <option key={it._id} value={it.item_name}>
@@ -131,7 +156,14 @@ export default function AddSpoilage() {
 
         <div className="line-item-row">
           <div className="form-group">
-            <label className="form-label">Quantity</label>
+            <label className="form-label">
+              Quantity
+              {form.item_name && getStockFor(form.item_name) !== null && (
+                <span className="stock-hint">
+                  {getStockFor(form.item_name)} {form.unit_type} in stock
+                </span>
+              )}
+            </label>
             <input
               className="form-input"
               type="number"
