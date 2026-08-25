@@ -100,7 +100,9 @@ export default function AddSale() {
   const handlePriceChange = (index, value) => {
     const line = lines[index];
     const bargained =
-      line._prefilledPrice !== null && Number(value) !== Number(line._prefilledPrice);
+      line._prefilledPrice !== null &&
+      line._prefilledPrice > 0 &&
+      Number(value) !== Number(line._prefilledPrice);
     updateLine(index, { price_per_unit: value, bargained });
   };
 

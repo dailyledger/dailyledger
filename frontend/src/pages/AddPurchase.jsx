@@ -15,6 +15,7 @@ export default function AddPurchase() {
     quantity: '',
     unit_type: 'piece',
     amount: '',
+    selling_price: '',
     payment_mode: 'cash',
     notes: '',
   });
@@ -66,6 +67,7 @@ export default function AddPurchase() {
       quantity: Number(form.quantity),
       unit_type: form.unit_type,
       amount: Number(form.amount),
+      selling_price: form.selling_price ? Number(form.selling_price) : undefined,
       payment_mode: form.payment_mode,
       notes: form.notes || undefined,
     };
@@ -159,6 +161,21 @@ export default function AddPurchase() {
             required
           />
         </div>
+
+        {!isEditMode && (
+          <div className="form-group">
+            <label className="form-label">Selling price (optional)</label>
+            <input
+              className="form-input"
+              type="number"
+              min="0"
+              step="any"
+              value={form.selling_price}
+              onChange={(e) => update('selling_price', e.target.value)}
+              placeholder="Sets the initial price to suggest at next sale"
+            />
+          </div>
+        )}
 
         <div className="form-group">
           <label className="form-label">Payment mode</label>
