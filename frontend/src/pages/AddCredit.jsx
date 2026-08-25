@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { getItems, createCredit } from '../api';
+import { useNavigate, useParams } from 'react-router-dom';
+import { getItems, createCredit, getCredit, updateCredit } from '../api';
 import { formatCurrency } from '../format';
 
 const UNIT_TYPES = ['kg', 'litre', 'piece'];
@@ -18,17 +18,55 @@ function emptyLine() {
 
 export default function AddCredit() {
   const navigate = useNavigate();
+  const { id } = useParams();
+  const isEditMode = Boolean(id);
+
   const [items, setItems] = useState([]);
   const [customerName, setCustomerName] = useState('');
   const [phone, setPhone] = useState('');
   const [lines, setLines] = useState([emptyLine()]);
   const [notes, setNotes] = useState('');
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [loading, setLoading] = useState(isEditMode);
 
   useEffect(() => {
     getItems().then(setItems).catch(() => setItems([]));
   }, []);
+
+  useEffect(() => {
+    if (!isEditMode) return;
+
+    let cancelled = false;
+    getCredit(id)
+      .then((credit) => {
+        if (cancelled) return;
+        setCustomerName(credit.customer_name);
+        setPhone(credit.phone || '');
+        setLines(
+          (credit.items || []).map((item) => ({
+            item_name: item.item_name,
+            unit_type: item.unit_type,
+            quantity: item.quantity,
+            price_per_unit: item.price_per_unit,
+            bargained: item.bargained,
+            _prefilledPrice: null,
+          }))
+        );
+        setNotes(credit.notes || '');
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err.message);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [id, isEditMode]);
 
   const updateLine = (index, changes) => {
     setLines((prev) =>
@@ -78,6 +116,7 @@ export default function AddCredit() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setSuccess('');
 
     for (const line of lines) {
       if (!line.item_name || !line.quantity || line.price_per_unit === '') {
@@ -103,19 +142,31 @@ export default function AddCredit() {
 
     setSubmitting(true);
     try {
-      await createCredit(payload);
-      navigate('/credits');
+      if (isEditMode) {
+        await updateCredit(id, payload);
+        setSuccess('Credit entry updated successfully.');
+        setSubmitting(false);
+        setTimeout(() => navigate('/credits'), 900);
+      } else {
+        await createCredit(payload);
+        navigate('/credits');
+      }
     } catch (err) {
       setError(err.message);
       setSubmitting(false);
     }
   };
 
+  if (loading) {
+    return <div className="empty-state">Loading credit entry...</div>;
+  }
+
   return (
     <div>
-      <h1 className="page-title">Add Credit</h1>
+      <h1 className="page-title">{isEditMode ? 'Edit Credit' : 'Add Credit'}</h1>
 
       {error && <div className="error-banner">{error}</div>}
+      {success && <div className="success-banner">{success}</div>}
 
       <form onSubmit={handleSubmit}>
         <div className="form-group">
@@ -239,7 +290,7 @@ export default function AddCredit() {
         </div>
 
         <button type="submit" className="btn btn-primary" disabled={submitting}>
-          {submitting ? 'Saving...' : 'Save Credit'}
+          {submitting ? 'Saving...' : isEditMode ? 'Save Changes' : 'Save Credit'}
         </button>
       </form>
     </div>

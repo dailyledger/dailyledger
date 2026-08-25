@@ -3,6 +3,8 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const connectDB = require('./db');
+const requireAuth = require('./middleware/auth');
+const authRouter = require('./routes/auth');
 const itemsRouter = require('./routes/items');
 const salesRouter = require('./routes/sales');
 const purchasesRouter = require('./routes/purchases');
@@ -21,12 +23,14 @@ app.get('/', (req, res) => {
   res.json({ status: 'DailyLedger API running' });
 });
 
-app.use('/api/items', itemsRouter);
-app.use('/api/sales', salesRouter);
-app.use('/api/purchases', purchasesRouter);
-app.use('/api/credits', creditsRouter);
-app.use('/api/spoilage', spoilageRouter);
-app.use('/api/dashboard', dashboardRouter);
+app.use('/api/auth', authRouter);
+
+app.use('/api/items', requireAuth, itemsRouter);
+app.use('/api/sales', requireAuth, salesRouter);
+app.use('/api/purchases', requireAuth, purchasesRouter);
+app.use('/api/credits', requireAuth, creditsRouter);
+app.use('/api/spoilage', requireAuth, spoilageRouter);
+app.use('/api/dashboard', requireAuth, dashboardRouter);
 
 const PORT = process.env.PORT || 5000;
 

@@ -1,11 +1,12 @@
 :root {
+  --brand-color: #2563eb;
+  --brand-color-dark: #1d4ed8;
+  --brand-color-tint: rgba(37, 99, 235, 0.1);
   --color-bg: #f5f6f8;
   --color-surface: #ffffff;
   --color-text: #1a1d23;
   --color-muted: #6b7280;
   --color-border: #e3e5e9;
-  --color-primary: #2563eb;
-  --color-primary-dark: #1d4ed8;
   --color-danger: #dc2626;
   --color-success: #16a34a;
   --color-warning: #d97706;
@@ -48,8 +49,15 @@ button, input, select, textarea {
 
 @media (min-width: 768px) {
   .app-main {
-    max-width: 960px;
+    max-width: 760px;
     padding: 24px 24px 40px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .app-main {
+    max-width: 1000px;
+    padding: 32px 32px 48px;
   }
 }
 
@@ -86,8 +94,16 @@ button, input, select, textarea {
 }
 
 .nav-link.active {
-  color: var(--color-primary);
+  color: var(--brand-color);
   font-weight: 600;
+}
+
+.nav-logout {
+  background: none;
+  border: none;
+  font-family: inherit;
+  cursor: pointer;
+  color: var(--color-danger);
 }
 
 @media (min-width: 768px) {
@@ -111,7 +127,7 @@ button, input, select, textarea {
   }
 
   .nav-link.active {
-    background: #eaf0ff;
+    background: var(--brand-color-tint);
   }
 
   .app-main {
@@ -124,6 +140,7 @@ button, input, select, textarea {
   font-size: 1.4rem;
   font-weight: 700;
   margin: 4px 0 16px;
+  color: var(--brand-color);
 }
 
 .card {
@@ -166,28 +183,6 @@ button, input, select, textarea {
 
 .stat-value.positive { color: var(--color-success); }
 .stat-value.negative { color: var(--color-danger); }
-
-.toggle-group {
-  display: inline-flex;
-  border: 1px solid var(--color-border);
-  border-radius: 999px;
-  overflow: hidden;
-  margin-bottom: 16px;
-}
-
-.toggle-option {
-  padding: 8px 20px;
-  background: var(--color-surface);
-  border: none;
-  cursor: pointer;
-  color: var(--color-muted);
-  font-weight: 600;
-}
-
-.toggle-option.active {
-  background: var(--color-primary);
-  color: #fff;
-}
 
 .dashboard-page {
   position: relative;
@@ -267,8 +262,8 @@ button, input, select, textarea {
   background: linear-gradient(135deg, #f87171, #b91c1c);
 }
 
-.app-tile-icon.tile-purple {
-  background: linear-gradient(135deg, #c084fc, #7c3aed);
+.app-tile-icon.tile-teal {
+  background: linear-gradient(135deg, #2dd4bf, #0f766e);
 }
 
 .btn {
@@ -285,13 +280,13 @@ button, input, select, textarea {
 }
 
 .btn-primary {
-  background: var(--color-primary);
+  background: var(--brand-color);
   color: #fff;
   width: 100%;
 }
 
 .btn-primary:active {
-  background: var(--color-primary-dark);
+  background: var(--brand-color-dark);
 }
 
 .btn-secondary {
@@ -332,7 +327,7 @@ button, input, select, textarea {
 }
 
 .form-input:focus, .form-select:focus {
-  outline: 2px solid var(--color-primary);
+  outline: 2px solid var(--brand-color);
   outline-offset: -1px;
 }
 
@@ -352,9 +347,9 @@ button, input, select, textarea {
 }
 
 .mode-toggle button.active {
-  background: var(--color-primary);
+  background: var(--brand-color);
   color: #fff;
-  border-color: var(--color-primary);
+  border-color: var(--brand-color);
 }
 
 .line-item {
@@ -453,6 +448,31 @@ button, input, select, textarea {
   white-space: nowrap;
 }
 
+.list-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-muted);
+  cursor: pointer;
+}
+
+.icon-btn:hover {
+  color: var(--brand-color);
+  border-color: var(--brand-color);
+}
+
 .badge {
   display: inline-block;
   font-size: 0.7rem;
@@ -476,6 +496,85 @@ button, input, select, textarea {
   color: var(--color-success);
 }
 
+.reports-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.reports-header-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--brand-color);
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.reports-header .page-title {
+  margin: 0;
+}
+
+.report-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.report-tab {
+  padding: 10px 18px;
+  border-radius: 10px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-muted);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.report-tab.active {
+  background: var(--brand-color);
+  border-color: var(--brand-color);
+  color: #fff;
+}
+
+.filter-bar {
+  background: var(--color-surface);
+  border-radius: 14px;
+  padding: 18px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  margin-bottom: 20px;
+}
+
+.filter-bar-fields {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 14px;
+}
+
+.filter-bar-fields .form-group {
+  flex: 1 1 160px;
+  margin-bottom: 0;
+}
+
+.filter-bar-fields .btn {
+  flex: 0 0 auto;
+  width: auto;
+  padding-left: 28px;
+  padding-right: 28px;
+}
+
+@media (max-width: 479px) {
+  .filter-bar-fields .btn {
+    width: 100%;
+  }
+}
+
 .table-scroll {
   overflow-x: auto;
   background: var(--color-surface);
@@ -493,9 +592,23 @@ button, input, select, textarea {
 
 .report-table th,
 .report-table td {
-  padding: 12px 14px;
+  padding: 13px 16px;
   text-align: left;
   border-bottom: 1px solid var(--color-border);
+}
+
+.report-table tbody tr:nth-child(even) {
+  background: var(--color-bg);
+}
+
+.report-table tbody tr:hover {
+  background: var(--brand-color-tint);
+}
+
+.report-table td.num,
+.report-table th.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
 .report-table thead th {
@@ -503,12 +616,14 @@ button, input, select, textarea {
   font-size: 0.78rem;
   text-transform: uppercase;
   letter-spacing: 0.03em;
+  border-bottom: 2px solid var(--color-border);
 }
 
 .report-table tfoot td {
   font-weight: 700;
   border-bottom: none;
   border-top: 2px solid var(--color-border);
+  background: var(--color-surface);
 }
 
 .empty-state {
@@ -582,4 +697,88 @@ button, input, select, textarea {
   .modal-content {
     border-radius: 16px;
   }
+}
+
+/* react-datepicker brand overrides */
+.date-field-wrapper {
+  width: 100%;
+}
+
+.date-field-wrapper .react-datepicker__input-container input {
+  width: 100%;
+}
+
+.react-datepicker {
+  font-family: inherit;
+  border-color: var(--color-border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.react-datepicker__header {
+  background-color: var(--brand-color);
+  border-bottom: none;
+  padding-top: 12px;
+}
+
+.react-datepicker__current-month,
+.react-datepicker-time__header,
+.react-datepicker__day-name {
+  color: #fff;
+}
+
+.react-datepicker__navigation-icon::before {
+  border-color: #fff;
+}
+
+.react-datepicker__day--selected,
+.react-datepicker__day--keyboard-selected {
+  background-color: var(--brand-color);
+  color: #fff;
+}
+
+.react-datepicker__day--selected:hover,
+.react-datepicker__day--keyboard-selected:hover {
+  background-color: var(--brand-color-dark);
+}
+
+.react-datepicker__day:hover {
+  background-color: var(--brand-color-tint);
+}
+
+.react-datepicker__day--today {
+  font-weight: 700;
+  color: var(--brand-color);
+}
+
+.react-datepicker__triangle {
+  fill: var(--brand-color) !important;
+  color: var(--brand-color) !important;
+}
+
+/* Login */
+.login-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background-color: var(--color-bg);
+  background-image: radial-gradient(circle at 1px 1px, rgba(37, 99, 235, 0.14) 1.5px, transparent 0);
+  background-size: 22px 22px;
+}
+
+.login-card {
+  width: 100%;
+  max-width: 380px;
+  background: var(--color-surface);
+  border-radius: 16px;
+  padding: 32px 28px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+}
+
+.login-subtitle {
+  text-align: center;
+  color: var(--color-muted);
+  margin: -8px 0 24px;
 }

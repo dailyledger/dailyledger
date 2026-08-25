@@ -4,24 +4,29 @@ const Credit = require('../models/Credit');
 const Item = require('../models/Item');
 const buildDateFilter = require('../utils/dateFilter');
 
+async function validateItemsAgainstCatalog(items) {
+  for (const lineItem of items) {
+    const catalogItem = await Item.findOne({ item_name: lineItem.item_name });
+
+    if (!catalogItem) {
+      return `Item "${lineItem.item_name}" must be purchased/added first before it can be given on credit`;
+    }
+
+    if (catalogItem.unit_type !== lineItem.unit_type) {
+      return `Unit type mismatch for "${lineItem.item_name}": catalog uses "${catalogItem.unit_type}", credit uses "${lineItem.unit_type}"`;
+    }
+  }
+
+  return null;
+}
+
 router.post('/', async (req, res) => {
   try {
     const items = req.body.items || [];
 
-    for (const lineItem of items) {
-      const catalogItem = await Item.findOne({ item_name: lineItem.item_name });
-
-      if (!catalogItem) {
-        return res.status(400).json({
-          error: `Item "${lineItem.item_name}" must be purchased/added first before it can be given on credit`,
-        });
-      }
-
-      if (catalogItem.unit_type !== lineItem.unit_type) {
-        return res.status(400).json({
-          error: `Unit type mismatch for "${lineItem.item_name}": catalog uses "${catalogItem.unit_type}", credit uses "${lineItem.unit_type}"`,
-        });
-      }
+    const validationError = await validateItemsAgainstCatalog(items);
+    if (validationError) {
+      return res.status(400).json({ error: validationError });
     }
 
     for (const lineItem of items) {
@@ -84,6 +89,40 @@ router.patch('/:id/pay', async (req, res) => {
 
     credit.amount_paid += amount_paid;
     credit.status = credit.amount_paid >= credit.total_amount ? 'paid' : 'partially_paid';
+
+    await credit.save();
+    res.json(credit);
+  } catch (err) {
+    console.error(err);
+    if (err.name === 'CastError') {
+      return res.status(400).json({ error: 'Invalid credit id' });
+    }
+    if (err.name === 'ValidationError') {
+      return res.status(400).json({ error: err.message });
+    }
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+router.put('/:id', async (req, res) => {
+  try {
+    const { customer_name, phone, items, total_amount, notes } = req.body;
+
+    const validationError = await validateItemsAgainstCatalog(items || []);
+    if (validationError) {
+      return res.status(400).json({ error: validationError });
+    }
+
+    const credit = await Credit.findById(req.params.id);
+    if (!credit) {
+      return res.status(404).json({ error: 'Credit entry not found' });
+    }
+
+    credit.customer_name = customer_name;
+    credit.phone = phone;
+    credit.items = items;
+    credit.total_amount = total_amount;
+    credit.notes = notes;
 
     await credit.save();
     res.json(credit);

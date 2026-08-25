@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { Pencil } from 'lucide-react';
 import { getCredits, payCredit } from '../api';
 import { formatCurrency, formatDate } from '../format';
 
 export default function CreditLedger() {
+  const navigate = useNavigate();
   const [credits, setCredits] = useState([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
@@ -31,6 +33,11 @@ export default function CreditLedger() {
   };
 
   const closePayModal = () => setSelected(null);
+
+  const goToEdit = (e, creditId) => {
+    e.stopPropagation();
+    navigate(`/credits/${creditId}/edit`);
+  };
 
   const handlePay = async (e) => {
     e.preventDefault();
@@ -73,10 +80,15 @@ export default function CreditLedger() {
         <div className="empty-state">No credit entries yet.</div>
       ) : (
         credits.map((credit) => (
-          <button
+          <div
             className="list-item"
             key={credit._id}
+            role="button"
+            tabIndex={0}
             onClick={() => openPayModal(credit)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') openPayModal(credit);
+            }}
           >
             <div className="list-item-main">
               <span className="list-item-title">
@@ -94,10 +106,21 @@ export default function CreditLedger() {
                 {formatDate(credit.date)}
               </span>
             </div>
-            <span className="list-item-amount">
-              {formatCurrency(credit.total_amount - credit.amount_paid)}
-            </span>
-          </button>
+            <div className="list-item-actions">
+              <button
+                type="button"
+                className="icon-btn"
+                onClick={(e) => goToEdit(e, credit._id)}
+                aria-label="Edit credit entry"
+                title="Edit"
+              >
+                <Pencil size={16} />
+              </button>
+              <span className="list-item-amount">
+                {formatCurrency(credit.total_amount - credit.amount_paid)}
+              </span>
+            </div>
+          </div>
         ))
       )}
 

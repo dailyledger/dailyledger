@@ -1,11 +1,14 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { createPurchase } from '../api';
+import { useEffect, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { createPurchase, getPurchase, updatePurchase } from '../api';
 
 const UNIT_TYPES = ['kg', 'litre', 'piece'];
 
 export default function AddPurchase() {
   const navigate = useNavigate();
+  const { id } = useParams();
+  const isEditMode = Boolean(id);
+
   const [form, setForm] = useState({
     vendor_name: '',
     item_name: '',
@@ -16,37 +19,83 @@ export default function AddPurchase() {
     notes: '',
   });
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [loading, setLoading] = useState(isEditMode);
+
+  useEffect(() => {
+    if (!isEditMode) return;
+
+    let cancelled = false;
+    getPurchase(id)
+      .then((purchase) => {
+        if (cancelled) return;
+        setForm({
+          vendor_name: purchase.vendor_name,
+          item_name: purchase.item_name,
+          quantity: purchase.quantity,
+          unit_type: purchase.unit_type,
+          amount: purchase.amount,
+          payment_mode: purchase.payment_mode,
+          notes: purchase.notes || '',
+        });
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err.message);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [id, isEditMode]);
 
   const update = (field, value) => setForm((prev) => ({ ...prev, [field]: value }));
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setSuccess('');
     setSubmitting(true);
 
+    const payload = {
+      vendor_name: form.vendor_name,
+      item_name: form.item_name,
+      quantity: Number(form.quantity),
+      unit_type: form.unit_type,
+      amount: Number(form.amount),
+      payment_mode: form.payment_mode,
+      notes: form.notes || undefined,
+    };
+
     try {
-      await createPurchase({
-        vendor_name: form.vendor_name,
-        item_name: form.item_name,
-        quantity: Number(form.quantity),
-        unit_type: form.unit_type,
-        amount: Number(form.amount),
-        payment_mode: form.payment_mode,
-        notes: form.notes || undefined,
-      });
-      navigate('/purchases');
+      if (isEditMode) {
+        await updatePurchase(id, payload);
+        setSuccess('Purchase updated successfully.');
+        setSubmitting(false);
+        setTimeout(() => navigate('/purchases'), 900);
+      } else {
+        await createPurchase(payload);
+        navigate('/purchases');
+      }
     } catch (err) {
       setError(err.message);
       setSubmitting(false);
     }
   };
 
+  if (loading) {
+    return <div className="empty-state">Loading purchase...</div>;
+  }
+
   return (
     <div>
-      <h1 className="page-title">Add Purchase</h1>
+      <h1 className="page-title">{isEditMode ? 'Edit Purchase' : 'Add Purchase'}</h1>
 
       {error && <div className="error-banner">{error}</div>}
+      {success && <div className="success-banner">{success}</div>}
 
       <form onSubmit={handleSubmit}>
         <div className="form-group">
@@ -141,7 +190,7 @@ export default function AddPurchase() {
         </div>
 
         <button type="submit" className="btn btn-primary" disabled={submitting}>
-          {submitting ? 'Saving...' : 'Save Purchase'}
+          {submitting ? 'Saving...' : isEditMode ? 'Save Changes' : 'Save Purchase'}
         </button>
       </form>
     </div>

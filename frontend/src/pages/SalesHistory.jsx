@@ -34,7 +34,7 @@ export default function SalesHistory() {
         <div className="empty-state">No sales recorded yet.</div>
       ) : (
         sales.map((sale) => (
-          <div className="list-item" key={sale._id}>
+          <Link className="list-item" to={`/sales/${sale._id}/edit`} key={sale._id}>
             <div className="list-item-main">
               <span className="list-item-title">
                 {sale.items?.length || 0} item{sale.items?.length === 1 ? '' : 's'} &middot;{' '}
@@ -43,7 +43,7 @@ export default function SalesHistory() {
               <span className="list-item-sub">{formatDate(sale.date)}</span>
             </div>
             <span className="list-item-amount">{formatCurrency(sale.total_amount)}</span>
-          </div>
+          </Link>
         ))
       )}
     </div>

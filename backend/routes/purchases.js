@@ -58,4 +58,35 @@ router.get('/:id', async (req, res) => {
   }
 });
 
+router.put('/:id', async (req, res) => {
+  try {
+    const { vendor_name, item_name, quantity, unit_type, amount, payment_mode, notes } = req.body;
+
+    const purchase = await Purchase.findById(req.params.id);
+    if (!purchase) {
+      return res.status(404).json({ error: 'Purchase not found' });
+    }
+
+    purchase.vendor_name = vendor_name;
+    purchase.item_name = item_name;
+    purchase.quantity = quantity;
+    purchase.unit_type = unit_type;
+    purchase.amount = amount;
+    purchase.payment_mode = payment_mode;
+    purchase.notes = notes;
+
+    await purchase.save();
+    res.json(purchase);
+  } catch (err) {
+    console.error(err);
+    if (err.name === 'CastError') {
+      return res.status(400).json({ error: 'Invalid purchase id' });
+    }
+    if (err.name === 'ValidationError') {
+      return res.status(400).json({ error: err.message });
+    }
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 module.exports = router;

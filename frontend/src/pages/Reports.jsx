@@ -1,6 +1,8 @@
 import { useState } from 'react';
+import { BarChart3 } from 'lucide-react';
 import { getSales, getPurchases, getCredits, getSpoilageEntries } from '../api';
 import { formatCurrency } from '../format';
+import DateField from '../components/DateField';
 
 const TABS = [
   { key: 'sales', label: 'Sales' },
@@ -16,6 +18,14 @@ function toDateOnly(value) {
     month: 'short',
     year: 'numeric',
   });
+}
+
+function toISODate(date) {
+  if (!date) return undefined;
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 function flattenSales(sales) {
@@ -82,17 +92,24 @@ const REPORT_CONFIG = {
     fetch: getSales,
     flatten: flattenSales,
     amountField: 'amount',
-    amountColumnIndex: 5,
-    columns: ['Date', 'Item', 'Qty', 'Unit', 'Price/Unit', 'Amount', 'Payment Mode'],
+    columns: [
+      { label: 'Date' },
+      { label: 'Item' },
+      { label: 'Qty', numeric: true },
+      { label: 'Unit' },
+      { label: 'Price/Unit', numeric: true },
+      { label: 'Payment Mode' },
+      { label: 'Amount', numeric: true },
+    ],
     renderRow: (row, i) => (
       <tr key={i}>
         <td>{toDateOnly(row.date)}</td>
         <td>{row.item_name}</td>
-        <td>{row.quantity}</td>
+        <td className="num">{row.quantity}</td>
         <td>{row.unit_type}</td>
-        <td>{formatCurrency(row.price_per_unit)}</td>
-        <td>{formatCurrency(row.amount)}</td>
+        <td className="num">{formatCurrency(row.price_per_unit)}</td>
         <td>{row.payment_mode}</td>
+        <td className="num">{formatCurrency(row.amount)}</td>
       </tr>
     ),
   },
@@ -100,16 +117,22 @@ const REPORT_CONFIG = {
     fetch: getPurchases,
     flatten: flattenPurchases,
     amountField: 'amount',
-    amountColumnIndex: 5,
-    columns: ['Date', 'Vendor', 'Item', 'Qty', 'Unit', 'Amount'],
+    columns: [
+      { label: 'Date' },
+      { label: 'Vendor' },
+      { label: 'Item' },
+      { label: 'Qty', numeric: true },
+      { label: 'Unit' },
+      { label: 'Amount', numeric: true },
+    ],
     renderRow: (row, i) => (
       <tr key={i}>
         <td>{toDateOnly(row.date)}</td>
         <td>{row.vendor_name}</td>
         <td>{row.item_name}</td>
-        <td>{row.quantity}</td>
+        <td className="num">{row.quantity}</td>
         <td>{row.unit_type}</td>
-        <td>{formatCurrency(row.amount)}</td>
+        <td className="num">{formatCurrency(row.amount)}</td>
       </tr>
     ),
   },
@@ -117,17 +140,24 @@ const REPORT_CONFIG = {
     fetch: getCredits,
     flatten: flattenCredits,
     amountField: 'amount',
-    amountColumnIndex: 4,
-    columns: ['Date', 'Customer', 'Item', 'Qty', 'Amount', 'Amount Received', 'Balance'],
+    columns: [
+      { label: 'Date' },
+      { label: 'Customer' },
+      { label: 'Item' },
+      { label: 'Qty', numeric: true },
+      { label: 'Amount Received', numeric: true },
+      { label: 'Balance', numeric: true },
+      { label: 'Amount', numeric: true },
+    ],
     renderRow: (row, i) => (
       <tr key={i}>
         <td>{toDateOnly(row.date)}</td>
         <td>{row.customer_name}</td>
         <td>{row.item_name}</td>
-        <td>{row.quantity}</td>
-        <td>{formatCurrency(row.amount)}</td>
-        <td>{formatCurrency(row.amount_received)}</td>
-        <td>{formatCurrency(row.balance)}</td>
+        <td className="num">{row.quantity}</td>
+        <td className="num">{formatCurrency(row.amount_received)}</td>
+        <td className="num">{formatCurrency(row.balance)}</td>
+        <td className="num">{formatCurrency(row.amount)}</td>
       </tr>
     ),
   },
@@ -135,16 +165,22 @@ const REPORT_CONFIG = {
     fetch: getSpoilageEntries,
     flatten: flattenSpoilage,
     amountField: 'estimated_value',
-    amountColumnIndex: 4,
-    columns: ['Date', 'Item', 'Qty', 'Unit', 'Estimated Value', 'Reason'],
+    columns: [
+      { label: 'Date' },
+      { label: 'Item' },
+      { label: 'Qty', numeric: true },
+      { label: 'Unit' },
+      { label: 'Reason' },
+      { label: 'Estimated Value', numeric: true },
+    ],
     renderRow: (row, i) => (
       <tr key={i}>
         <td>{toDateOnly(row.date)}</td>
         <td>{row.item_name}</td>
-        <td>{row.quantity}</td>
+        <td className="num">{row.quantity}</td>
         <td>{row.unit_type}</td>
-        <td>{formatCurrency(row.estimated_value)}</td>
         <td>{row.reason}</td>
+        <td className="num">{formatCurrency(row.estimated_value)}</td>
       </tr>
     ),
   },
@@ -152,8 +188,8 @@ const REPORT_CONFIG = {
 
 export default function Reports() {
   const [tab, setTab] = useState('sales');
-  const [fromDate, setFromDate] = useState('');
-  const [toDate, setToDate] = useState('');
+  const [fromDate, setFromDate] = useState(null);
+  const [toDate, setToDate] = useState(null);
   const [rows, setRows] = useState(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -172,7 +208,7 @@ export default function Reports() {
     setRows(null);
 
     try {
-      const records = await config.fetch({ from: fromDate || undefined, to: toDate || undefined });
+      const records = await config.fetch({ from: toISODate(fromDate), to: toISODate(toDate) });
       setRows(config.flatten(records));
     } catch (err) {
       setError(err.message);
@@ -185,13 +221,18 @@ export default function Reports() {
 
   return (
     <div>
-      <h1 className="page-title">Reports</h1>
+      <div className="reports-header">
+        <span className="reports-header-icon">
+          <BarChart3 size={22} strokeWidth={2} />
+        </span>
+        <h1 className="page-title">Reports</h1>
+      </div>
 
-      <div className="toggle-group" style={{ flexWrap: 'wrap' }}>
+      <div className="report-tabs">
         {TABS.map((t) => (
           <button
             key={t.key}
-            className={`toggle-option${tab === t.key ? ' active' : ''}`}
+            className={`report-tab${tab === t.key ? ' active' : ''}`}
             onClick={() => changeTab(t.key)}
           >
             {t.label}
@@ -199,30 +240,25 @@ export default function Reports() {
         ))}
       </div>
 
-      <div className="card">
-        <div className="line-item-row">
-          <div className="form-group">
-            <label className="form-label">From Date</label>
-            <input
-              className="form-input"
-              type="date"
-              value={fromDate}
-              onChange={(e) => setFromDate(e.target.value)}
-            />
-          </div>
-          <div className="form-group">
-            <label className="form-label">To Date</label>
-            <input
-              className="form-input"
-              type="date"
-              value={toDate}
-              onChange={(e) => setToDate(e.target.value)}
-            />
-          </div>
+      <div className="filter-bar">
+        <div className="filter-bar-fields">
+          <DateField
+            label="From Date"
+            selected={fromDate}
+            onChange={setFromDate}
+            placeholder="Select start date"
+            maxDate={toDate || undefined}
+          />
+          <DateField
+            label="To Date"
+            selected={toDate}
+            onChange={setToDate}
+            placeholder="Select end date"
+          />
+          <button className="btn btn-primary" onClick={handleGenerate} disabled={loading}>
+            {loading ? 'Generating...' : 'Generate'}
+          </button>
         </div>
-        <button className="btn btn-primary btn-full" onClick={handleGenerate} disabled={loading}>
-          {loading ? 'Generating...' : 'Generate'}
-        </button>
       </div>
 
       {error && <div className="error-banner">{error}</div>}
@@ -236,7 +272,9 @@ export default function Reports() {
               <thead>
                 <tr>
                   {config.columns.map((col) => (
-                    <th key={col}>{col}</th>
+                    <th key={col.label} className={col.numeric ? 'num' : ''}>
+                      {col.label}
+                    </th>
                   ))}
                 </tr>
               </thead>
@@ -245,9 +283,8 @@ export default function Reports() {
               </tbody>
               <tfoot>
                 <tr>
-                  <td colSpan={config.amountColumnIndex}>Total</td>
-                  <td>{formatCurrency(total)}</td>
-                  <td colSpan={config.columns.length - config.amountColumnIndex - 1} />
+                  <td colSpan={config.columns.length - 1}>Total</td>
+                  <td className="num">{formatCurrency(total)}</td>
                 </tr>
               </tfoot>
             </table>

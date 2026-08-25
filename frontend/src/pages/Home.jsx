@@ -9,7 +9,7 @@ const QUICK_ACTIONS = [
   { to: '/purchases/add', label: 'Purchase', Icon: Package, color: 'tile-orange' },
   { to: '/credits/add', label: 'Credit', Icon: HandCoins, color: 'tile-green' },
   { to: '/spoilage/add', label: 'Spoilage', Icon: Trash2, color: 'tile-red' },
-  { to: '/reports', label: 'Reports', Icon: BarChart3, color: 'tile-purple' },
+  { to: '/reports', label: 'Reports', Icon: BarChart3, color: 'tile-teal' },
 ];
 
 export default function Home() {

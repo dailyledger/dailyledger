@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { getItems, createSale } from '../api';
+import { useNavigate, useParams } from 'react-router-dom';
+import { getItems, createSale, getSale, updateSale } from '../api';
 import { formatCurrency } from '../format';
 
 const UNIT_TYPES = ['kg', 'litre', 'piece'];
@@ -18,16 +18,53 @@ function emptyLine() {
 
 export default function AddSale() {
   const navigate = useNavigate();
+  const { id } = useParams();
+  const isEditMode = Boolean(id);
+
   const [items, setItems] = useState([]);
   const [lines, setLines] = useState([emptyLine()]);
   const [paymentMode, setPaymentMode] = useState('cash');
   const [notes, setNotes] = useState('');
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [loading, setLoading] = useState(isEditMode);
 
   useEffect(() => {
     getItems().then(setItems).catch(() => setItems([]));
   }, []);
+
+  useEffect(() => {
+    if (!isEditMode) return;
+
+    let cancelled = false;
+    getSale(id)
+      .then((sale) => {
+        if (cancelled) return;
+        setLines(
+          (sale.items || []).map((item) => ({
+            item_name: item.item_name,
+            unit_type: item.unit_type,
+            quantity: item.quantity,
+            price_per_unit: item.price_per_unit,
+            bargained: item.bargained,
+            _prefilledPrice: null,
+          }))
+        );
+        setPaymentMode(sale.payment_mode);
+        setNotes(sale.notes || '');
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err.message);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [id, isEditMode]);
 
   const updateLine = (index, changes) => {
     setLines((prev) =>
@@ -77,6 +114,7 @@ export default function AddSale() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setSuccess('');
 
     for (const line of lines) {
       if (!line.item_name || !line.quantity || line.price_per_unit === '') {
@@ -101,19 +139,31 @@ export default function AddSale() {
 
     setSubmitting(true);
     try {
-      await createSale(payload);
-      navigate('/sales');
+      if (isEditMode) {
+        await updateSale(id, payload);
+        setSuccess('Sale updated successfully.');
+        setSubmitting(false);
+        setTimeout(() => navigate('/sales'), 900);
+      } else {
+        await createSale(payload);
+        navigate('/sales');
+      }
     } catch (err) {
       setError(err.message);
       setSubmitting(false);
     }
   };
 
+  if (loading) {
+    return <div className="empty-state">Loading sale...</div>;
+  }
+
   return (
     <div>
-      <h1 className="page-title">Add Sale</h1>
+      <h1 className="page-title">{isEditMode ? 'Edit Sale' : 'Add Sale'}</h1>
 
       {error && <div className="error-banner">{error}</div>}
+      {success && <div className="success-banner">{success}</div>}
 
       <form onSubmit={handleSubmit}>
         {lines.map((line, index) => (
@@ -237,7 +287,7 @@ export default function AddSale() {
         </div>
 
         <button type="submit" className="btn btn-primary" disabled={submitting}>
-          {submitting ? 'Saving...' : 'Save Sale'}
+          {submitting ? 'Saving...' : isEditMode ? 'Save Changes' : 'Save Sale'}
         </button>
       </form>
     </div>

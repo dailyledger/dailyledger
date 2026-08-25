@@ -1,12 +1,15 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { getItems, createSpoilage } from '../api';
+import { useNavigate, useParams } from 'react-router-dom';
+import { getItems, createSpoilage, getSpoilageEntry, updateSpoilage } from '../api';
 
 const UNIT_TYPES = ['kg', 'litre', 'piece'];
 const REASONS = ['spoiled', 'expired', 'damaged'];
 
 export default function AddSpoilage() {
   const navigate = useNavigate();
+  const { id } = useParams();
+  const isEditMode = Boolean(id);
+
   const [items, setItems] = useState([]);
   const [form, setForm] = useState({
     item_name: '',
@@ -17,11 +20,41 @@ export default function AddSpoilage() {
     notes: '',
   });
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [loading, setLoading] = useState(isEditMode);
 
   useEffect(() => {
     getItems().then(setItems).catch(() => setItems([]));
   }, []);
+
+  useEffect(() => {
+    if (!isEditMode) return;
+
+    let cancelled = false;
+    getSpoilageEntry(id)
+      .then((entry) => {
+        if (cancelled) return;
+        setForm({
+          item_name: entry.item_name,
+          quantity: entry.quantity,
+          unit_type: entry.unit_type,
+          estimated_value: entry.estimated_value,
+          reason: entry.reason,
+          notes: entry.notes || '',
+        });
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err.message);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [id, isEditMode]);
 
   const update = (field, value) => setForm((prev) => ({ ...prev, [field]: value }));
 
@@ -37,29 +70,44 @@ export default function AddSpoilage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setSuccess('');
     setSubmitting(true);
 
+    const payload = {
+      item_name: form.item_name,
+      quantity: Number(form.quantity),
+      unit_type: form.unit_type,
+      estimated_value: Number(form.estimated_value),
+      reason: form.reason,
+      notes: form.notes || undefined,
+    };
+
     try {
-      await createSpoilage({
-        item_name: form.item_name,
-        quantity: Number(form.quantity),
-        unit_type: form.unit_type,
-        estimated_value: Number(form.estimated_value),
-        reason: form.reason,
-        notes: form.notes || undefined,
-      });
-      navigate('/spoilage');
+      if (isEditMode) {
+        await updateSpoilage(id, payload);
+        setSuccess('Spoilage entry updated successfully.');
+        setSubmitting(false);
+        setTimeout(() => navigate('/spoilage'), 900);
+      } else {
+        await createSpoilage(payload);
+        navigate('/spoilage');
+      }
     } catch (err) {
       setError(err.message);
       setSubmitting(false);
     }
   };
 
+  if (loading) {
+    return <div className="empty-state">Loading spoilage entry...</div>;
+  }
+
   return (
     <div>
-      <h1 className="page-title">Add Spoilage</h1>
+      <h1 className="page-title">{isEditMode ? 'Edit Spoilage' : 'Add Spoilage'}</h1>
 
       {error && <div className="error-banner">{error}</div>}
+      {success && <div className="success-banner">{success}</div>}
 
       <form onSubmit={handleSubmit}>
         <div className="form-group">
@@ -148,7 +196,7 @@ export default function AddSpoilage() {
         </div>
 
         <button type="submit" className="btn btn-primary" disabled={submitting}>
-          {submitting ? 'Saving...' : 'Save Spoilage'}
+          {submitting ? 'Saving...' : isEditMode ? 'Save Changes' : 'Save Spoilage'}
         </button>
       </form>
     </div>

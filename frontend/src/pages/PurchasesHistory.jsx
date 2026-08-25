@@ -34,7 +34,7 @@ export default function PurchasesHistory() {
         <div className="empty-state">No purchases recorded yet.</div>
       ) : (
         purchases.map((p) => (
-          <div className="list-item" key={p._id}>
+          <Link className="list-item" to={`/purchases/${p._id}/edit`} key={p._id}>
             <div className="list-item-main">
               <span className="list-item-title">
                 {p.item_name} &middot; {p.quantity} {p.unit_type}
@@ -44,7 +44,7 @@ export default function PurchasesHistory() {
               </span>
             </div>
             <span className="list-item-amount">{formatCurrency(p.amount)}</span>
-          </div>
+          </Link>
         ))
       )}
     </div>

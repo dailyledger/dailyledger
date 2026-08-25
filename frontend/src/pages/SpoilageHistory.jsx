@@ -34,7 +34,7 @@ export default function SpoilageHistory() {
         <div className="empty-state">No spoilage recorded yet.</div>
       ) : (
         entries.map((entry) => (
-          <div className="list-item" key={entry._id}>
+          <Link className="list-item" to={`/spoilage/${entry._id}/edit`} key={entry._id}>
             <div className="list-item-main">
               <span className="list-item-title">
                 {entry.item_name} &middot; {entry.quantity} {entry.unit_type}
@@ -44,7 +44,7 @@ export default function SpoilageHistory() {
               </span>
             </div>
             <span className="list-item-amount">{formatCurrency(entry.estimated_value)}</span>
-          </div>
+          </Link>
         ))
       )}
     </div>
