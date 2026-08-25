@@ -35,7 +35,7 @@ router.get('/summary', async (req, res) => {
     const total_spoilage = sumField(spoilageEntries, 'estimated_value');
     const profit = total_sales - total_purchases - total_spoilage;
     const total_outstanding_credit = outstandingCredits.reduce(
-      (total, credit) => total + (credit.amount - credit.amount_paid),
+      (total, credit) => total + (credit.total_amount - credit.amount_paid),
       0
     );
 

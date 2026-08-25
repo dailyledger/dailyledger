@@ -1,9 +1,26 @@
 const express = require('express');
 const router = express.Router();
 const Spoilage = require('../models/Spoilage');
+const Item = require('../models/Item');
 
 router.post('/', async (req, res) => {
   try {
+    const { item_name, unit_type } = req.body;
+
+    const catalogItem = await Item.findOne({ item_name });
+
+    if (!catalogItem) {
+      return res.status(400).json({
+        error: `Item "${item_name}" must be purchased/added first before it can be marked as spoilage`,
+      });
+    }
+
+    if (catalogItem.unit_type !== unit_type) {
+      return res.status(400).json({
+        error: `Unit type mismatch for "${item_name}": catalog uses "${catalogItem.unit_type}", entry uses "${unit_type}"`,
+      });
+    }
+
     const spoilage = new Spoilage(req.body);
     await spoilage.save();
     res.status(201).json(spoilage);

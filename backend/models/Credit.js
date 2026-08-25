@@ -1,5 +1,33 @@
 const mongoose = require('mongoose');
 
+const creditItemSchema = new mongoose.Schema({
+  item_name: {
+    type: String,
+    required: true,
+  },
+  unit_type: {
+    type: String,
+    enum: ['kg', 'litre', 'piece'],
+    required: true,
+  },
+  quantity: {
+    type: Number,
+    required: true,
+  },
+  price_per_unit: {
+    type: Number,
+    required: true,
+  },
+  line_total: {
+    type: Number,
+    required: true,
+  },
+  bargained: {
+    type: Boolean,
+    default: false,
+  },
+}, { _id: false });
+
 const creditSchema = new mongoose.Schema({
   customer_name: {
     type: String,
@@ -8,7 +36,11 @@ const creditSchema = new mongoose.Schema({
   phone: {
     type: String,
   },
-  amount: {
+  items: {
+    type: [creditItemSchema],
+    required: true,
+  },
+  total_amount: {
     type: Number,
     required: true,
   },
