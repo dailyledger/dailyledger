@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '../AuthContext';
+import { API_URL } from '../api';
 
 export default function Login() {
   const { login } = useAuth();
@@ -58,6 +59,8 @@ export default function Login() {
             {submitting ? 'Signing in...' : 'Sign In'}
           </button>
         </form>
+
+        <p className="debug-banner">[DEBUG] API_URL: {API_URL}</p>
       </div>
     </div>
   );
