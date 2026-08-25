@@ -1,6 +1,4 @@
 export const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-console.log('[DEBUG] API_URL:', API_URL);
-console.log('[DEBUG] import.meta.env:', JSON.stringify(import.meta.env));
 const BASE_URL = `${API_URL}/api`;
 
 let authToken = null;

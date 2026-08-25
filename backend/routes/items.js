@@ -2,19 +2,9 @@ const express = require('express');
 const router = express.Router();
 const Item = require('../models/Item');
 
-router.post('/', async (req, res) => {
-  try {
-    const item = new Item(req.body);
-    await item.save();
-    res.status(201).json(item);
-  } catch (err) {
-    console.error(err);
-    if (err.name === 'ValidationError') {
-      return res.status(400).json({ error: err.message });
-    }
-    res.status(500).json({ error: 'Server error' });
-  }
-});
+// Items are only ever created as a side effect of a Purchase (see routes/purchases.js).
+// There is deliberately no POST / here — creating an item directly would let it be
+// sold/credited/spoiled with stock that was never actually purchased.
 
 router.get('/', async (req, res) => {
   try {

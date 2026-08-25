@@ -83,13 +83,20 @@ export default function AddCredit() {
       updateLine(index, {
         item_name: name,
         unit_type: match.unit_type,
-        price_per_unit: match.last_price ?? '',
-        _prefilledPrice: match.last_price ?? null,
+        price_per_unit: match.last_selling_price ?? '',
+        _prefilledPrice: match.last_selling_price ?? null,
         bargained: false,
       });
     } else {
       updateLine(index, { item_name: name, _prefilledPrice: null });
     }
+  };
+
+  const getStockFor = (itemName) => {
+    const match = items.find(
+      (it) => it.item_name.toLowerCase() === itemName.toLowerCase()
+    );
+    return match ? match.stock_quantity : null;
   };
 
   const handlePriceChange = (index, value) => {
@@ -235,7 +242,14 @@ export default function AddCredit() {
                 </select>
               </div>
               <div className="form-group">
-                <label className="form-label">Quantity</label>
+                <label className="form-label">
+                  Quantity
+                  {line.item_name && getStockFor(line.item_name) !== null && (
+                    <span className="stock-hint">
+                      {getStockFor(line.item_name)} {line.unit_type} in stock
+                    </span>
+                  )}
+                </label>
                 <input
                   className="form-input"
                   type="number"

@@ -20,6 +20,21 @@ async function validateItemsAgainstCatalog(items) {
   return null;
 }
 
+// Only run at creation time: at this point stock hasn't been decremented yet.
+// Running this same check on edit would compare against stock that was already
+// reduced by this sale's own original quantities, producing false rejections.
+async function checkStockAvailability(items) {
+  for (const lineItem of items) {
+    const catalogItem = await Item.findOne({ item_name: lineItem.item_name });
+
+    if (lineItem.quantity > catalogItem.stock_quantity) {
+      return `Insufficient stock for "${lineItem.item_name}": requested ${lineItem.quantity}, available ${catalogItem.stock_quantity}`;
+    }
+  }
+
+  return null;
+}
+
 router.post('/', async (req, res) => {
   try {
     const items = req.body.items || [];
@@ -29,11 +44,17 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: validationError });
     }
 
+    const stockError = await checkStockAvailability(items);
+    if (stockError) {
+      return res.status(400).json({ error: stockError });
+    }
+
     for (const lineItem of items) {
-      await Item.updateOne(
-        { item_name: lineItem.item_name },
-        { last_price: lineItem.price_per_unit }
-      );
+      const update = { $inc: { stock_quantity: -lineItem.quantity } };
+      if (!lineItem.bargained) {
+        update.$set = { last_selling_price: lineItem.price_per_unit };
+      }
+      await Item.updateOne({ item_name: lineItem.item_name }, update);
     }
 
     const sale = new Sale(req.body);

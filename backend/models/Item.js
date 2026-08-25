@@ -11,7 +11,15 @@ const itemSchema = new mongoose.Schema({
     enum: ['kg', 'litre', 'piece'],
     required: true,
   },
-  last_price: {
+  stock_quantity: {
+    type: Number,
+    default: 0,
+  },
+  last_cost_price: {
+    type: Number,
+    default: 0,
+  },
+  last_selling_price: {
     type: Number,
     default: 0,
   },

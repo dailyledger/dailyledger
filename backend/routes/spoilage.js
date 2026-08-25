@@ -6,7 +6,7 @@ const buildDateFilter = require('../utils/dateFilter');
 
 router.post('/', async (req, res) => {
   try {
-    const { item_name, unit_type } = req.body;
+    const { item_name, quantity, unit_type } = req.body;
 
     const catalogItem = await Item.findOne({ item_name });
 
@@ -21,6 +21,14 @@ router.post('/', async (req, res) => {
         error: `Unit type mismatch for "${item_name}": catalog uses "${catalogItem.unit_type}", entry uses "${unit_type}"`,
       });
     }
+
+    if (quantity > catalogItem.stock_quantity) {
+      return res.status(400).json({
+        error: `Insufficient stock for "${item_name}": requested ${quantity}, available ${catalogItem.stock_quantity}`,
+      });
+    }
+
+    await Item.updateOne({ item_name }, { $inc: { stock_quantity: -quantity } });
 
     const spoilage = new Spoilage(req.body);
     await spoilage.save();

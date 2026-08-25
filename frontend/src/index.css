@@ -388,6 +388,14 @@ button, input, select, textarea {
   margin-left: 8px;
 }
 
+.stock-hint {
+  float: right;
+  font-weight: 400;
+  color: var(--color-muted);
+  text-transform: none;
+  letter-spacing: normal;
+}
+
 .remove-line-btn {
   position: absolute;
   top: 8px;
@@ -783,14 +791,3 @@ button, input, select, textarea {
   margin: -8px 0 24px;
 }
 
-.debug-banner {
-  margin-top: 20px;
-  padding: 8px 10px;
-  border-radius: 8px;
-  background: #fff3cd;
-  color: #92400e;
-  font-size: 0.75rem;
-  font-family: monospace;
-  word-break: break-all;
-  text-align: center;
-}

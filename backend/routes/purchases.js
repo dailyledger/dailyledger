@@ -7,17 +7,25 @@ const buildDateFilter = require('../utils/dateFilter');
 router.post('/', async (req, res) => {
   try {
     const { item_name, unit_type, quantity, amount } = req.body;
+    const costPerUnit = quantity ? amount / quantity : 0;
 
     const existingItem = await Item.findOne({ item_name });
 
     if (!existingItem) {
-      const perUnitCost = quantity ? amount / quantity : 0;
-
       await Item.create({
         item_name,
         unit_type,
-        last_price: perUnitCost || 0,
+        stock_quantity: quantity,
+        last_cost_price: costPerUnit,
       });
+    } else {
+      await Item.updateOne(
+        { item_name },
+        {
+          $inc: { stock_quantity: quantity },
+          $set: { last_cost_price: costPerUnit },
+        }
+      );
     }
 
     const purchase = new Purchase(req.body);
