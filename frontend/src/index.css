@@ -189,37 +189,86 @@ button, input, select, textarea {
   color: #fff;
 }
 
-.quick-actions {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 12px;
-  margin-top: 20px;
+.dashboard-page {
+  position: relative;
+  border-radius: 20px;
+  padding: 20px 16px 28px;
+  background-color: var(--color-bg);
+  background-image: radial-gradient(circle at 1px 1px, rgba(37, 99, 235, 0.14) 1.5px, transparent 0);
+  background-size: 22px 22px;
 }
 
-@media (min-width: 640px) {
-  .quick-actions {
-    grid-template-columns: repeat(4, 1fr);
+.app-tile-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+  margin-top: 22px;
+}
+
+@media (min-width: 480px) {
+  .app-tile-grid {
+    grid-template-columns: repeat(3, 1fr);
   }
 }
 
-.action-btn {
+@media (min-width: 768px) {
+  .app-tile-grid {
+    grid-template-columns: repeat(5, 1fr);
+  }
+}
+
+.app-tile {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  padding: 18px 8px;
+  gap: 10px;
+  padding: 20px 10px;
   background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: 12px;
-  font-weight: 600;
+  border-radius: 18px;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
+  font-weight: 700;
+  font-size: 0.85rem;
   text-decoration: none;
   color: var(--color-text);
-  min-height: 88px;
+  min-height: 108px;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 
-.action-btn .icon {
-  font-size: 1.6rem;
+.app-tile:active {
+  transform: scale(0.96);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+}
+
+.app-tile-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  box-shadow: inset 0 -2px 6px rgba(0, 0, 0, 0.12);
+}
+
+.app-tile-icon.tile-blue {
+  background: linear-gradient(135deg, #60a5fa, #1d4ed8);
+}
+
+.app-tile-icon.tile-orange {
+  background: linear-gradient(135deg, #fbbf24, #ea580c);
+}
+
+.app-tile-icon.tile-green {
+  background: linear-gradient(135deg, #4ade80, #15803d);
+}
+
+.app-tile-icon.tile-red {
+  background: linear-gradient(135deg, #f87171, #b91c1c);
+}
+
+.app-tile-icon.tile-purple {
+  background: linear-gradient(135deg, #c084fc, #7c3aed);
 }
 
 .btn {
@@ -425,6 +474,41 @@ button, input, select, textarea {
 .badge-paid {
   background: #d9f2df;
   color: var(--color-success);
+}
+
+.table-scroll {
+  overflow-x: auto;
+  background: var(--color-surface);
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  margin-bottom: 16px;
+}
+
+.report-table {
+  width: 100%;
+  border-collapse: collapse;
+  white-space: nowrap;
+  font-size: 0.9rem;
+}
+
+.report-table th,
+.report-table td {
+  padding: 12px 14px;
+  text-align: left;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.report-table thead th {
+  color: var(--color-muted);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.report-table tfoot td {
+  font-weight: 700;
+  border-bottom: none;
+  border-top: 2px solid var(--color-border);
 }
 
 .empty-state {

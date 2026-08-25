@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const Purchase = require('../models/Purchase');
 const Item = require('../models/Item');
+const buildDateFilter = require('../utils/dateFilter');
 
 router.post('/', async (req, res) => {
   try {
@@ -33,7 +34,7 @@ router.post('/', async (req, res) => {
 
 router.get('/', async (req, res) => {
   try {
-    const purchases = await Purchase.find().sort({ date: -1 });
+    const purchases = await Purchase.find(buildDateFilter(req)).sort({ date: -1 });
     res.json(purchases);
   } catch (err) {
     console.error(err);

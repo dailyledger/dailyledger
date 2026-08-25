@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const Credit = require('../models/Credit');
 const Item = require('../models/Item');
+const buildDateFilter = require('../utils/dateFilter');
 
 router.post('/', async (req, res) => {
   try {
@@ -44,7 +45,7 @@ router.post('/', async (req, res) => {
 
 router.get('/', async (req, res) => {
   try {
-    const credits = await Credit.find().sort({ date: -1 });
+    const credits = await Credit.find(buildDateFilter(req)).sort({ date: -1 });
     res.json(credits);
   } catch (err) {
     console.error(err);

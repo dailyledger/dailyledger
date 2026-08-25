@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { Home, Receipt, Package, HandCoins, Trash2 } from 'lucide-react';
+import { Home, Receipt, Package, HandCoins, Trash2, BarChart3 } from 'lucide-react';
 
 const NAV_ITEMS = [
   { to: '/', label: 'Home', Icon: Home, end: true },
@@ -7,6 +7,7 @@ const NAV_ITEMS = [
   { to: '/purchases', label: 'Purchase', Icon: Package },
   { to: '/credits', label: 'Credit', Icon: HandCoins },
   { to: '/spoilage', label: 'Spoilage', Icon: Trash2 },
+  { to: '/reports', label: 'Reports', Icon: BarChart3 },
 ];
 
 export default function NavBar() {

@@ -15,20 +15,28 @@ async function request(path, options = {}) {
   return data;
 }
 
+function withDateRange(path, { from, to } = {}) {
+  const params = new URLSearchParams();
+  if (from) params.set('from', from);
+  if (to) params.set('to', to);
+  const query = params.toString();
+  return query ? `${path}?${query}` : path;
+}
+
 export const getItems = () => request('/items');
 export const getItem = (id) => request(`/items/${id}`);
 
-export const getSales = () => request('/sales');
+export const getSales = (range) => request(withDateRange('/sales', range));
 export const getSale = (id) => request(`/sales/${id}`);
 export const createSale = (payload) =>
   request('/sales', { method: 'POST', body: JSON.stringify(payload) });
 
-export const getPurchases = () => request('/purchases');
+export const getPurchases = (range) => request(withDateRange('/purchases', range));
 export const getPurchase = (id) => request(`/purchases/${id}`);
 export const createPurchase = (payload) =>
   request('/purchases', { method: 'POST', body: JSON.stringify(payload) });
 
-export const getCredits = () => request('/credits');
+export const getCredits = (range) => request(withDateRange('/credits', range));
 export const getCredit = (id) => request(`/credits/${id}`);
 export const createCredit = (payload) =>
   request('/credits', { method: 'POST', body: JSON.stringify(payload) });
@@ -38,7 +46,7 @@ export const payCredit = (id, amount_paid) =>
     body: JSON.stringify({ amount_paid }),
   });
 
-export const getSpoilageEntries = () => request('/spoilage');
+export const getSpoilageEntries = (range) => request(withDateRange('/spoilage', range));
 export const getSpoilageEntry = (id) => request(`/spoilage/${id}`);
 export const createSpoilage = (payload) =>
   request('/spoilage', { method: 'POST', body: JSON.stringify(payload) });

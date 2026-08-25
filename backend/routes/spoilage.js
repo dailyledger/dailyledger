@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const Spoilage = require('../models/Spoilage');
 const Item = require('../models/Item');
+const buildDateFilter = require('../utils/dateFilter');
 
 router.post('/', async (req, res) => {
   try {
@@ -35,7 +36,7 @@ router.post('/', async (req, res) => {
 
 router.get('/', async (req, res) => {
   try {
-    const spoilageEntries = await Spoilage.find().sort({ date: -1 });
+    const spoilageEntries = await Spoilage.find(buildDateFilter(req)).sort({ date: -1 });
     res.json(spoilageEntries);
   } catch (err) {
     console.error(err);

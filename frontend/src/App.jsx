@@ -9,6 +9,7 @@ import CreditLedger from './pages/CreditLedger';
 import AddCredit from './pages/AddCredit';
 import SpoilageHistory from './pages/SpoilageHistory';
 import AddSpoilage from './pages/AddSpoilage';
+import Reports from './pages/Reports';
 
 export default function App() {
   return (
@@ -25,6 +26,7 @@ export default function App() {
           <Route path="/credits/add" element={<AddCredit />} />
           <Route path="/spoilage" element={<SpoilageHistory />} />
           <Route path="/spoilage/add" element={<AddSpoilage />} />
+          <Route path="/reports" element={<Reports />} />
         </Routes>
       </main>
     </div>

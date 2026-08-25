@@ -1,20 +1,26 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { Receipt, Package, HandCoins, Trash2, BarChart3 } from 'lucide-react';
 import { getDashboardSummary } from '../api';
 import { formatCurrency } from '../format';
 
+const QUICK_ACTIONS = [
+  { to: '/sales/add', label: 'Sales', Icon: Receipt, color: 'tile-blue' },
+  { to: '/purchases/add', label: 'Purchase', Icon: Package, color: 'tile-orange' },
+  { to: '/credits/add', label: 'Credit', Icon: HandCoins, color: 'tile-green' },
+  { to: '/spoilage/add', label: 'Spoilage', Icon: Trash2, color: 'tile-red' },
+  { to: '/reports', label: 'Reports', Icon: BarChart3, color: 'tile-purple' },
+];
+
 export default function Home() {
-  const [period, setPeriod] = useState('day');
   const [summary, setSummary] = useState(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
-    setError('');
 
-    getDashboardSummary(period)
+    getDashboardSummary('day')
       .then((data) => {
         if (!cancelled) setSummary(data);
       })
@@ -28,26 +34,11 @@ export default function Home() {
     return () => {
       cancelled = true;
     };
-  }, [period]);
+  }, []);
 
   return (
-    <div>
+    <div className="dashboard-page">
       <h1 className="page-title">Dashboard</h1>
-
-      <div className="toggle-group">
-        <button
-          className={`toggle-option${period === 'day' ? ' active' : ''}`}
-          onClick={() => setPeriod('day')}
-        >
-          Today
-        </button>
-        <button
-          className={`toggle-option${period === 'week' ? ' active' : ''}`}
-          onClick={() => setPeriod('week')}
-        >
-          Last 7 Days
-        </button>
-      </div>
 
       {error && <div className="error-banner">{error}</div>}
 
@@ -78,23 +69,15 @@ export default function Home() {
         )
       )}
 
-      <div className="quick-actions">
-        <Link className="action-btn" to="/sales/add">
-          <span className="icon">🧾</span>
-          Add Sale
-        </Link>
-        <Link className="action-btn" to="/purchases/add">
-          <span className="icon">📦</span>
-          Add Purchase
-        </Link>
-        <Link className="action-btn" to="/credits/add">
-          <span className="icon">🤝</span>
-          Add Credit
-        </Link>
-        <Link className="action-btn" to="/spoilage/add">
-          <span className="icon">🗑️</span>
-          Add Spoilage
-        </Link>
+      <div className="app-tile-grid">
+        {QUICK_ACTIONS.map(({ to, label, Icon, color }) => (
+          <Link className="app-tile" to={to} key={to}>
+            <span className={`app-tile-icon ${color}`}>
+              <Icon size={26} strokeWidth={2} />
+            </span>
+            {label}
+          </Link>
+        ))}
       </div>
     </div>
   );

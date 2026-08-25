@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const Sale = require('../models/Sale');
 const Item = require('../models/Item');
+const buildDateFilter = require('../utils/dateFilter');
 
 router.post('/', async (req, res) => {
   try {
@@ -44,7 +45,7 @@ router.post('/', async (req, res) => {
 
 router.get('/', async (req, res) => {
   try {
-    const sales = await Sale.find().sort({ date: -1 });
+    const sales = await Sale.find(buildDateFilter(req)).sort({ date: -1 });
     res.json(sales);
   } catch (err) {
     console.error(err);
