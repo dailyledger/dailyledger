@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { getItems, createCredit, getCredit, updateCredit } from '../api';
+import { getItems, createCredit, getCredit, updateCredit, newIdempotencyKey } from '../api';
 import { formatCurrency } from '../format';
+import StockWarningDialog from '../components/StockWarningDialog';
 
 const UNIT_TYPES = ['kg', 'litre', 'piece'];
 
@@ -29,6 +30,8 @@ export default function AddCredit() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [shortfalls, setShortfalls] = useState(null);
+  const idempotencyKey = useRef(newIdempotencyKey());
   const [loading, setLoading] = useState(isEditMode);
 
   useEffect(() => {
@@ -134,6 +137,50 @@ export default function AddCredit() {
 
   const grandTotal = lines.reduce((sum, line) => sum + lineTotal(line), 0);
 
+  // Totals are omitted: the server recomputes them and ignores anything the
+  // browser sends. grandTotal above is display only.
+  const buildPayload = (allowNegative) => ({
+    customer_name: customerName,
+    phone: phone || undefined,
+    items: lines.map((line) => ({
+      item_name: line.item_name,
+      unit_type: line.unit_type,
+      quantity: Number(line.quantity),
+      price_per_unit: Number(line.price_per_unit),
+      bargained: line.bargained,
+    })),
+    notes: notes || undefined,
+    ...(allowNegative ? { allow_negative: true } : {}),
+  });
+
+  const save = async (allowNegative) => {
+    setSubmitting(true);
+    try {
+      const payload = buildPayload(allowNegative);
+
+      if (isEditMode) {
+        await updateCredit(id, payload);
+        setShortfalls(null);
+        setSuccess('Credit entry updated successfully.');
+        setSubmitting(false);
+        setTimeout(() => navigate('/credits'), 900);
+      } else {
+        await createCredit(payload, idempotencyKey.current);
+        navigate('/credits');
+      }
+    } catch (err) {
+      setSubmitting(false);
+
+      if (err.needsStockConfirmation) {
+        setShortfalls(err.shortfalls);
+        return;
+      }
+
+      setShortfalls(null);
+      setError(err.message);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -146,36 +193,7 @@ export default function AddCredit() {
       }
     }
 
-    const payload = {
-      customer_name: customerName,
-      phone: phone || undefined,
-      items: lines.map((line) => ({
-        item_name: line.item_name,
-        unit_type: line.unit_type,
-        quantity: Number(line.quantity),
-        price_per_unit: Number(line.price_per_unit),
-        line_total: lineTotal(line),
-        bargained: line.bargained,
-      })),
-      total_amount: grandTotal,
-      notes: notes || undefined,
-    };
-
-    setSubmitting(true);
-    try {
-      if (isEditMode) {
-        await updateCredit(id, payload);
-        setSuccess('Credit entry updated successfully.');
-        setSubmitting(false);
-        setTimeout(() => navigate('/credits'), 900);
-      } else {
-        await createCredit(payload);
-        navigate('/credits');
-      }
-    } catch (err) {
-      setError(err.message);
-      setSubmitting(false);
-    }
+    await save(false);
   };
 
   if (loading) {
@@ -188,6 +206,13 @@ export default function AddCredit() {
 
       {error && <div className="error-banner">{error}</div>}
       {success && <div className="success-banner">{success}</div>}
+
+      <StockWarningDialog
+        shortfalls={shortfalls}
+        busy={submitting}
+        onConfirm={() => save(true)}
+        onCancel={() => setShortfalls(null)}
+      />
 
       <form onSubmit={handleSubmit}>
         <div className="form-group">

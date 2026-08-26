@@ -3,6 +3,7 @@ const router = express.Router();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const Shop = require('../models/Shop');
 
 router.post('/login', async (req, res) => {
   try {
@@ -22,13 +23,40 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ error: 'Invalid username or password' });
     }
 
+    if (!user.shop) {
+      return res.status(401).json({
+        error: 'This account is not linked to a shop. Run scripts/migrate.js or contact the owner.',
+      });
+    }
+
+    const shop = await Shop.findById(user.shop).lean();
+    if (!shop) {
+      return res.status(401).json({ error: 'The shop for this account no longer exists' });
+    }
+
+    // Blocker 01: the shop travels in the signed token, so it cannot be spoofed
+    // by the client on subsequent requests.
     const token = jwt.sign(
-      { sub: user._id.toString(), username: user.username },
+      {
+        sub: user._id.toString(),
+        username: user.username,
+        shop: user.shop.toString(),
+        role: user.role,
+      },
       process.env.JWT_SECRET,
       { expiresIn: '12h' }
     );
 
-    res.json({ token });
+    res.json({
+      token,
+      user: { username: user.username, role: user.role },
+      shop: {
+        id: shop._id,
+        name: shop.name,
+        timezone: shop.timezone,
+        day_start_hour: shop.day_start_hour,
+      },
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server error' });

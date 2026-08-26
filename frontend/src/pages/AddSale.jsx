@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { getItems, createSale, getSale, updateSale } from '../api';
+import { getItems, createSale, getSale, updateSale, newIdempotencyKey } from '../api';
 import { formatCurrency } from '../format';
+import StockWarningDialog from '../components/StockWarningDialog';
 
 const UNIT_TYPES = ['kg', 'litre', 'piece'];
 
@@ -29,6 +30,11 @@ export default function AddSale() {
   const [success, setSuccess] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [loading, setLoading] = useState(isEditMode);
+  const [shortfalls, setShortfalls] = useState(null);
+
+  // One key per attempt at this form, reused across a retry/confirm so the server
+  // recognises a repeat rather than storing a second sale.
+  const idempotencyKey = useRef(newIdempotencyKey());
 
   useEffect(() => {
     let cancelled = false;
@@ -132,6 +138,51 @@ export default function AddSale() {
 
   const grandTotal = lines.reduce((sum, line) => sum + lineTotal(line), 0);
 
+  // Totals are no longer sent: the server recomputes every derived number and
+  // ignores whatever the browser claims. grandTotal above is display only.
+  const buildPayload = (allowNegative) => ({
+    items: lines.map((line) => ({
+      item_name: line.item_name,
+      unit_type: line.unit_type,
+      quantity: Number(line.quantity),
+      price_per_unit: Number(line.price_per_unit),
+      bargained: line.bargained,
+    })),
+    payment_mode: paymentMode,
+    notes: notes || undefined,
+    ...(allowNegative ? { allow_negative: true } : {}),
+  });
+
+  const save = async (allowNegative) => {
+    setSubmitting(true);
+    try {
+      const payload = buildPayload(allowNegative);
+
+      if (isEditMode) {
+        await updateSale(id, payload);
+        setShortfalls(null);
+        setSuccess('Sale updated successfully.');
+        setSubmitting(false);
+        setTimeout(() => navigate('/sales'), 900);
+      } else {
+        await createSale(payload, idempotencyKey.current);
+        navigate('/sales');
+      }
+    } catch (err) {
+      setSubmitting(false);
+
+      // Stock would go negative — ask rather than refuse. The entry describes
+      // something that already happened on the shop floor.
+      if (err.needsStockConfirmation) {
+        setShortfalls(err.shortfalls);
+        return;
+      }
+
+      setShortfalls(null);
+      setError(err.message);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -144,35 +195,7 @@ export default function AddSale() {
       }
     }
 
-    const payload = {
-      items: lines.map((line) => ({
-        item_name: line.item_name,
-        unit_type: line.unit_type,
-        quantity: Number(line.quantity),
-        price_per_unit: Number(line.price_per_unit),
-        line_total: lineTotal(line),
-        bargained: line.bargained,
-      })),
-      total_amount: grandTotal,
-      payment_mode: paymentMode,
-      notes: notes || undefined,
-    };
-
-    setSubmitting(true);
-    try {
-      if (isEditMode) {
-        await updateSale(id, payload);
-        setSuccess('Sale updated successfully.');
-        setSubmitting(false);
-        setTimeout(() => navigate('/sales'), 900);
-      } else {
-        await createSale(payload);
-        navigate('/sales');
-      }
-    } catch (err) {
-      setError(err.message);
-      setSubmitting(false);
-    }
+    await save(false);
   };
 
   if (loading) {
@@ -185,6 +208,13 @@ export default function AddSale() {
 
       {error && <div className="error-banner">{error}</div>}
       {success && <div className="success-banner">{success}</div>}
+
+      <StockWarningDialog
+        shortfalls={shortfalls}
+        busy={submitting}
+        onConfirm={() => save(true)}
+        onCancel={() => setShortfalls(null)}
+      />
 
       <form onSubmit={handleSubmit}>
         {lines.map((line, index) => (

@@ -16,15 +16,54 @@ export function setUnauthorizedHandler(handler) {
   onUnauthorized = handler;
 }
 
+/**
+ * Carries the HTTP status and payload so callers can react to specific cases —
+ * notably the 409 the server returns when a write would take stock negative and
+ * needs the operator to confirm.
+ */
+export class ApiError extends Error {
+  constructor(message, status, body) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.body = body;
+  }
+
+  /** Stock would go negative; resubmit with allow_negative to record it anyway. */
+  get needsStockConfirmation() {
+    return this.status === 409 && this.body?.error === 'stock_would_go_negative';
+  }
+
+  get shortfalls() {
+    return this.body?.shortfalls || [];
+  }
+}
+
+/**
+ * One key per form submission, so a double-tap on a slow connection is recognised
+ * by the server as the same write instead of creating a second record.
+ */
+export function newIdempotencyKey() {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return `k-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+}
+
 async function request(path, options = {}) {
+  const { idempotencyKey, ...rest } = options;
+
   const headers = { 'Content-Type': 'application/json' };
   if (authToken) {
     headers.Authorization = `Bearer ${authToken}`;
   }
+  if (idempotencyKey) {
+    headers['Idempotency-Key'] = idempotencyKey;
+  }
 
   const res = await fetch(`${BASE_URL}${path}`, {
     headers,
-    ...options,
+    ...rest,
   });
 
   const data = await res.json().catch(() => null);
@@ -33,7 +72,11 @@ async function request(path, options = {}) {
     if (res.status === 401 && onUnauthorized) {
       onUnauthorized();
     }
-    throw new Error(data?.error || `Request failed with status ${res.status}`);
+    throw new ApiError(
+      data?.message || data?.error || `Request failed with status ${res.status}`,
+      res.status,
+      data
+    );
   }
 
   return data;
@@ -47,38 +90,43 @@ function withDateRange(path, { from, to } = {}) {
   return query ? `${path}?${query}` : path;
 }
 
+const post = (path, payload, idempotencyKey) =>
+  request(path, { method: 'POST', body: JSON.stringify(payload), idempotencyKey });
+
+const put = (path, payload) => request(path, { method: 'PUT', body: JSON.stringify(payload) });
+
+const del = (path, payload) =>
+  request(path, { method: 'DELETE', body: JSON.stringify(payload || {}) });
+
 export const login = (username, password) =>
   request('/auth/login', { method: 'POST', body: JSON.stringify({ username, password }) });
 
 export const getItems = () => request('/items');
 export const getItem = (id) => request(`/items/${id}`);
+export const getItemMovements = (id) => request(`/items/${id}/movements`);
 
 export const getSales = (range) => request(withDateRange('/sales', range));
 export const getSale = (id) => request(`/sales/${id}`);
-export const createSale = (payload) =>
-  request('/sales', { method: 'POST', body: JSON.stringify(payload) });
-export const updateSale = (id, payload) =>
-  request(`/sales/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
+export const createSale = (payload, key) => post('/sales', payload, key);
+export const updateSale = (id, payload) => put(`/sales/${id}`, payload);
+export const cancelSale = (id, reason) => del(`/sales/${id}`, { reason });
 export const getSaleReturns = (id) => request(`/sales/${id}/returns`);
-export const createSaleReturn = (id, payload) =>
-  request(`/sales/${id}/return`, { method: 'POST', body: JSON.stringify(payload) });
+export const createSaleReturn = (id, payload, key) => post(`/sales/${id}/return`, payload, key);
 
 export const getPurchases = (range) => request(withDateRange('/purchases', range));
 export const getPurchase = (id) => request(`/purchases/${id}`);
-export const createPurchase = (payload) =>
-  request('/purchases', { method: 'POST', body: JSON.stringify(payload) });
-export const updatePurchase = (id, payload) =>
-  request(`/purchases/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
+export const createPurchase = (payload, key) => post('/purchases', payload, key);
+export const updatePurchase = (id, payload) => put(`/purchases/${id}`, payload);
+export const cancelPurchase = (id, reason) => del(`/purchases/${id}`, { reason });
 export const getPurchaseReturns = (id) => request(`/purchases/${id}/returns`);
-export const createPurchaseReturn = (id, payload) =>
-  request(`/purchases/${id}/return`, { method: 'POST', body: JSON.stringify(payload) });
+export const createPurchaseReturn = (id, payload, key) =>
+  post(`/purchases/${id}/return`, payload, key);
 
 export const getCredits = (range) => request(withDateRange('/credits', range));
 export const getCredit = (id) => request(`/credits/${id}`);
-export const createCredit = (payload) =>
-  request('/credits', { method: 'POST', body: JSON.stringify(payload) });
-export const updateCredit = (id, payload) =>
-  request(`/credits/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
+export const createCredit = (payload, key) => post('/credits', payload, key);
+export const updateCredit = (id, payload) => put(`/credits/${id}`, payload);
+export const cancelCredit = (id, reason) => del(`/credits/${id}`, { reason });
 export const payCredit = (id, amount_paid) =>
   request(`/credits/${id}/pay`, {
     method: 'PATCH',
@@ -87,10 +135,9 @@ export const payCredit = (id, amount_paid) =>
 
 export const getSpoilageEntries = (range) => request(withDateRange('/spoilage', range));
 export const getSpoilageEntry = (id) => request(`/spoilage/${id}`);
-export const createSpoilage = (payload) =>
-  request('/spoilage', { method: 'POST', body: JSON.stringify(payload) });
-export const updateSpoilage = (id, payload) =>
-  request(`/spoilage/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
+export const createSpoilage = (payload, key) => post('/spoilage', payload, key);
+export const updateSpoilage = (id, payload) => put(`/spoilage/${id}`, payload);
+export const cancelSpoilage = (id, reason) => del(`/spoilage/${id}`, { reason });
 
 export const getDashboardSummary = (period = 'day') =>
   request(`/dashboard/summary?period=${period}`);

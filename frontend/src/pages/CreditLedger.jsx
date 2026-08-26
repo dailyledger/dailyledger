@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Pencil } from 'lucide-react';
-import { getCredits, payCredit } from '../api';
+import { Pencil, Ban } from 'lucide-react';
+import { getCredits, payCredit, cancelCredit } from '../api';
 import { formatCurrency, formatDate } from '../format';
+import ConfirmDialog from '../components/ConfirmDialog';
 
 function creditItemsLabel(credit) {
   const items = credit.items || [];
@@ -20,6 +21,8 @@ export default function CreditLedger() {
   const [payAmount, setPayAmount] = useState('');
   const [payError, setPayError] = useState('');
   const [paying, setPaying] = useState(false);
+  const [toCancel, setToCancel] = useState(null);
+  const [cancelling, setCancelling] = useState(false);
 
   const loadCredits = () => {
     setLoading(true);
@@ -44,6 +47,27 @@ export default function CreditLedger() {
   const goToEdit = (e, creditId) => {
     e.stopPropagation();
     navigate(`/credits/${creditId}/edit`);
+  };
+
+  const openCancel = (e, credit) => {
+    e.stopPropagation();
+    setToCancel(credit);
+  };
+
+  // Cancelling returns the goods to stock and clears the debt from reports.
+  const confirmCancel = async () => {
+    setCancelling(true);
+    setError('');
+    try {
+      await cancelCredit(toCancel._id, 'cancelled from credit ledger');
+      setToCancel(null);
+      loadCredits();
+    } catch (err) {
+      setError(err.message);
+      setToCancel(null);
+    } finally {
+      setCancelling(false);
+    }
   };
 
   const handlePay = async (e) => {
@@ -122,6 +146,19 @@ export default function CreditLedger() {
               >
                 <Pencil size={16} />
               </button>
+              {/* Only an untouched credit can be cancelled; once money has been
+                  collected the server refuses, so we hide the option. */}
+              {credit.amount_paid === 0 && (
+                <button
+                  type="button"
+                  className="icon-btn"
+                  onClick={(e) => openCancel(e, credit)}
+                  aria-label="Cancel credit entry"
+                  title="Cancel"
+                >
+                  <Ban size={16} />
+                </button>
+              )}
               <span className="list-item-amount">
                 {formatCurrency(credit.total_amount - credit.amount_paid)}
               </span>
@@ -182,6 +219,23 @@ export default function CreditLedger() {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={Boolean(toCancel)}
+        danger
+        title="Cancel this credit entry?"
+        message={
+          toCancel
+            ? `${toCancel.customer_name}'s debt of ${formatCurrency(toCancel.total_amount)} will ` +
+              `be cleared and the items go back into stock. The record is kept for your history.`
+            : ''
+        }
+        confirmLabel="Cancel entry"
+        cancelLabel="Keep it"
+        busy={cancelling}
+        onConfirm={confirmCancel}
+        onCancel={() => setToCancel(null)}
+      />
     </div>
   );
 }

@@ -1,8 +1,14 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Undo2 } from 'lucide-react';
-import { getSales, getSaleReturns, createSaleReturn } from '../api';
+import { Undo2, Ban } from 'lucide-react';
+import {
+  getSales,
+  getSaleReturns,
+  createSaleReturn,
+  cancelSale as cancelSaleRequest,
+} from '../api';
 import { formatCurrency, formatDate } from '../format';
+import ConfirmDialog from '../components/ConfirmDialog';
 
 function saleItemsLabel(sale) {
   const items = sale.items || [];
@@ -154,6 +160,8 @@ export default function SalesHistory() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [returnSale, setReturnSale] = useState(null);
+  const [cancelSale, setCancelSale] = useState(null);
+  const [cancelling, setCancelling] = useState(false);
 
   const loadSales = () => {
     setLoading(true);
@@ -171,6 +179,29 @@ export default function SalesHistory() {
     e.preventDefault();
     e.stopPropagation();
     setReturnSale(sale);
+  };
+
+  const openCancelModal = (e, sale) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setCancelSale(sale);
+  };
+
+  // Cancelling marks the sale voided and puts the goods back on the shelf. The
+  // record stays in the database so there is still a trail of what happened.
+  const confirmCancel = async () => {
+    setCancelling(true);
+    setError('');
+    try {
+      await cancelSaleRequest(cancelSale._id, 'cancelled from sales list');
+      setCancelSale(null);
+      loadSales();
+    } catch (err) {
+      setError(err.message);
+      setCancelSale(null);
+    } finally {
+      setCancelling(false);
+    }
   };
 
   return (
@@ -205,6 +236,9 @@ export default function SalesHistory() {
                     Returned: {returned}
                   </span>
                 )}
+                {sale.stock_warning && (
+                  <span className="row-warning">Recorded with stock going negative</span>
+                )}
               </div>
               <div className="list-item-actions">
                 <button
@@ -215,6 +249,15 @@ export default function SalesHistory() {
                 >
                   <Undo2 size={14} style={{ marginRight: 4, verticalAlign: -2 }} />
                   Return
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={(e) => openCancelModal(e, sale)}
+                  aria-label="Cancel this sale"
+                >
+                  <Ban size={14} style={{ marginRight: 4, verticalAlign: -2 }} />
+                  Cancel
                 </button>
                 <span className="list-item-amount">
                   {formatCurrency(sale.net_amount ?? sale.total_amount)}
@@ -232,6 +275,23 @@ export default function SalesHistory() {
           onReturned={loadSales}
         />
       )}
+
+      <ConfirmDialog
+        open={Boolean(cancelSale)}
+        danger
+        title="Cancel this sale?"
+        message={
+          cancelSale
+            ? `${formatCurrency(cancelSale.total_amount)} will be removed from your reports and ` +
+              `the items go back into stock. The record is kept so you can still see what happened.`
+            : ''
+        }
+        confirmLabel="Cancel sale"
+        cancelLabel="Keep it"
+        busy={cancelling}
+        onConfirm={confirmCancel}
+        onCancel={() => setCancelSale(null)}
+      />
     </div>
   );
 }

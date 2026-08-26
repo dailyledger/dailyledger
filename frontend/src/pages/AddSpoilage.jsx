@@ -1,6 +1,13 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { getItems, createSpoilage, getSpoilageEntry, updateSpoilage } from '../api';
+import {
+  getItems,
+  createSpoilage,
+  getSpoilageEntry,
+  updateSpoilage,
+  newIdempotencyKey,
+} from '../api';
+import StockWarningDialog from '../components/StockWarningDialog';
 
 const UNIT_TYPES = ['kg', 'litre', 'piece'];
 const REASONS = ['spoiled', 'expired', 'damaged'];
@@ -23,8 +30,9 @@ export default function AddSpoilage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [shortfalls, setShortfalls] = useState(null);
+  const idempotencyKey = useRef(newIdempotencyKey());
   const [loading, setLoading] = useState(isEditMode);
-  const [valueTouched, setValueTouched] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -80,7 +88,9 @@ export default function AddSpoilage() {
     return match ? match.last_cost_price : null;
   };
 
-  const autoEstimatedValue = (itemName, quantity) => {
+  // Preview only — the server recomputes this from the item's cost price on save,
+  // so what we show here can never disagree with what gets stored.
+  const previewValue = (itemName, quantity) => {
     const cost = getCostFor(itemName);
     if (cost === null || !quantity) return '';
     return Number((cost * Number(quantity)).toFixed(2));
@@ -92,7 +102,7 @@ export default function AddSpoilage() {
       ...prev,
       item_name: name,
       unit_type: match ? match.unit_type : prev.unit_type,
-      estimated_value: valueTouched ? prev.estimated_value : autoEstimatedValue(name, prev.quantity),
+      estimated_value: previewValue(name, prev.quantity),
     }));
   };
 
@@ -100,15 +110,8 @@ export default function AddSpoilage() {
     setForm((prev) => ({
       ...prev,
       quantity: value,
-      estimated_value: valueTouched
-        ? prev.estimated_value
-        : autoEstimatedValue(prev.item_name, value),
+      estimated_value: previewValue(prev.item_name, value),
     }));
-  };
-
-  const handleEstimatedValueChange = (value) => {
-    setValueTouched(true);
-    update('estimated_value', value);
   };
 
   const getStockFor = (itemName) => {
@@ -116,35 +119,50 @@ export default function AddSpoilage() {
     return match ? match.stock_quantity : null;
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError('');
-    setSuccess('');
+  // estimated_value is no longer sent — the server values spoilage at the item's
+  // cost price so the loss is what the goods actually cost us, not a guess.
+  const buildPayload = (allowNegative) => ({
+    item_name: form.item_name,
+    quantity: Number(form.quantity),
+    unit_type: form.unit_type,
+    reason: form.reason,
+    notes: form.notes || undefined,
+    ...(allowNegative ? { allow_negative: true } : {}),
+  });
+
+  const save = async (allowNegative) => {
     setSubmitting(true);
-
-    const payload = {
-      item_name: form.item_name,
-      quantity: Number(form.quantity),
-      unit_type: form.unit_type,
-      estimated_value: Number(form.estimated_value),
-      reason: form.reason,
-      notes: form.notes || undefined,
-    };
-
     try {
+      const payload = buildPayload(allowNegative);
+
       if (isEditMode) {
         await updateSpoilage(id, payload);
+        setShortfalls(null);
         setSuccess('Spoilage entry updated successfully.');
         setSubmitting(false);
         setTimeout(() => navigate('/spoilage'), 900);
       } else {
-        await createSpoilage(payload);
+        await createSpoilage(payload, idempotencyKey.current);
         navigate('/spoilage');
       }
     } catch (err) {
-      setError(err.message);
       setSubmitting(false);
+
+      if (err.needsStockConfirmation) {
+        setShortfalls(err.shortfalls);
+        return;
+      }
+
+      setShortfalls(null);
+      setError(err.message);
     }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+    await save(false);
   };
 
   if (loading) {
@@ -157,6 +175,13 @@ export default function AddSpoilage() {
 
       {error && <div className="error-banner">{error}</div>}
       {success && <div className="success-banner">{success}</div>}
+
+      <StockWarningDialog
+        shortfalls={shortfalls}
+        busy={submitting}
+        onConfirm={() => save(true)}
+        onCancel={() => setShortfalls(null)}
+      />
 
       <form onSubmit={handleSubmit}>
         <div className="form-group">
@@ -222,13 +247,15 @@ export default function AddSpoilage() {
           <label className="form-label">Estimated value</label>
           <input
             className="form-input"
-            type="number"
-            min="0"
-            step="any"
-            value={form.estimated_value}
-            onChange={(e) => handleEstimatedValueChange(e.target.value)}
-            required
+            type="text"
+            value={form.estimated_value === '' ? '—' : `₹${form.estimated_value}`}
+            readOnly
+            disabled
           />
+          <p className="stat-note">
+            Calculated from this item&apos;s cost price, so the loss reflects what the goods
+            actually cost you.
+          </p>
         </div>
 
         <div className="form-group">

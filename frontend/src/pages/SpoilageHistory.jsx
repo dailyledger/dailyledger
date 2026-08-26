@@ -1,19 +1,50 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { getSpoilageEntries } from '../api';
+import { Ban } from 'lucide-react';
+import { getSpoilageEntries, cancelSpoilage } from '../api';
 import { formatCurrency, formatDate } from '../format';
+import ConfirmDialog from '../components/ConfirmDialog';
 
 export default function SpoilageHistory() {
   const [entries, setEntries] = useState([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
+  const [toCancel, setToCancel] = useState(null);
+  const [cancelling, setCancelling] = useState(false);
 
-  useEffect(() => {
+  const load = () => {
+    setLoading(true);
     getSpoilageEntries()
       .then(setEntries)
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    load();
   }, []);
+
+  const openCancel = (e, entry) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setToCancel(entry);
+  };
+
+  // Cancelling puts the written-off goods back into stock.
+  const confirmCancel = async () => {
+    setCancelling(true);
+    setError('');
+    try {
+      await cancelSpoilage(toCancel._id, 'cancelled from spoilage list');
+      setToCancel(null);
+      load();
+    } catch (err) {
+      setError(err.message);
+      setToCancel(null);
+    } finally {
+      setCancelling(false);
+    }
+  };
 
   return (
     <div>
@@ -42,11 +73,42 @@ export default function SpoilageHistory() {
               <span className="list-item-sub">
                 {entry.reason} &middot; {formatDate(entry.date)}
               </span>
+              {entry.stock_warning && (
+                <span className="row-warning">Recorded with stock going negative</span>
+              )}
             </div>
-            <span className="list-item-amount">{formatCurrency(entry.estimated_value)}</span>
+            <div className="list-item-actions">
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={(e) => openCancel(e, entry)}
+                aria-label="Cancel this spoilage entry"
+              >
+                <Ban size={14} style={{ marginRight: 4, verticalAlign: -2 }} />
+                Cancel
+              </button>
+              <span className="list-item-amount">{formatCurrency(entry.estimated_value)}</span>
+            </div>
           </Link>
         ))
       )}
+
+      <ConfirmDialog
+        open={Boolean(toCancel)}
+        danger
+        title="Cancel this spoilage entry?"
+        message={
+          toCancel
+            ? `${toCancel.quantity} ${toCancel.unit_type} of ${toCancel.item_name} will go back ` +
+              `into stock and the loss will be removed from your reports.`
+            : ''
+        }
+        confirmLabel="Cancel entry"
+        cancelLabel="Keep it"
+        busy={cancelling}
+        onConfirm={confirmCancel}
+        onCancel={() => setToCancel(null)}
+      />
     </div>
   );
 }

@@ -3,68 +3,162 @@ const router = express.Router();
 const Purchase = require('../models/Purchase');
 const Item = require('../models/Item');
 const PurchaseReturn = require('../models/PurchaseReturn');
-const buildDateFilter = require('../utils/dateFilter');
+const buildQuery = require('../utils/dateFilter');
+const { BadRequestError } = require('../utils/dateFilter');
+const { round2, round3, isPositiveNumber } = require('../utils/money');
+const { moveStock } = require('../utils/stock');
+const { runInTransaction } = require('../utils/tx');
+const {
+  writeContext,
+  findByIdempotencyKey,
+  idempotencyKeyFrom,
+  sendError,
+} = require('../utils/ledger');
 
+// A purchase may be entered in packs (a 50kg sack) while stock is tracked in
+// units (kg). quantity * units_per_pack is what actually reaches the shelf.
 function packSize(unitsPerPack) {
   return unitsPerPack && unitsPerPack > 1 ? unitsPerPack : 1;
 }
 
+/**
+ * Blocker 04: the server derives cost per unit rather than trusting the client,
+ * and rounds it — `amount / totalUnits` is exactly where float drift enters.
+ */
+function resolvePurchase(body) {
+  if (!body.vendor_name || !String(body.vendor_name).trim()) {
+    throw new BadRequestError('Vendor name is required');
+  }
+  if (!body.item_name || !String(body.item_name).trim()) {
+    throw new BadRequestError('Item name is required');
+  }
+  if (!isPositiveNumber(body.quantity)) {
+    throw new BadRequestError('Quantity must be greater than 0');
+  }
+  if (!isPositiveNumber(body.amount)) {
+    throw new BadRequestError('Amount must be greater than 0');
+  }
+  if (!['kg', 'litre', 'piece'].includes(body.unit_type)) {
+    throw new BadRequestError('Unit type must be kg, litre or piece');
+  }
+  if (!['cash', 'gpay'].includes(body.payment_mode)) {
+    throw new BadRequestError('Payment mode must be "cash" or "gpay"');
+  }
+
+  const unitsPerPack = packSize(body.units_per_pack);
+  const quantity = round3(body.quantity);
+  const amount = round2(body.amount);
+  const totalStockUnits = round3(quantity * unitsPerPack);
+
+  return {
+    vendor_name: String(body.vendor_name).trim(),
+    item_name: String(body.item_name).trim(),
+    unit_type: body.unit_type,
+    quantity,
+    amount,
+    units_per_pack: unitsPerPack,
+    payment_mode: body.payment_mode,
+    totalStockUnits,
+    costPerUnit: totalStockUnits ? round2(amount / totalStockUnits) : 0,
+  };
+}
+
 router.post('/', async (req, res) => {
   try {
-    const { item_name, unit_type, quantity, amount, selling_price, units_per_pack } = req.body;
-
-    if (!selling_price || selling_price <= 0) {
-      return res.status(400).json({ error: 'Selling price is required and must be greater than 0' });
+    const idempotencyKey = idempotencyKeyFrom(req);
+    const existing = await findByIdempotencyKey(Purchase, req.shopId, idempotencyKey);
+    if (existing) {
+      return res.status(200).json(existing);
     }
 
-    const unitsPerPack = packSize(units_per_pack);
-    const totalStockUnits = quantity * unitsPerPack;
-    const costPerUnit = totalStockUnits ? amount / totalStockUnits : 0;
+    const { selling_price } = req.body;
+    if (!isPositiveNumber(selling_price)) {
+      return res
+        .status(400)
+        .json({ error: 'Selling price is required and must be greater than 0' });
+    }
 
-    const existingItem = await Item.findOne({ item_name });
+    const ctx = writeContext(req, req.body.date);
+    const p = resolvePurchase(req.body);
+    const sellingPrice = round2(selling_price);
 
-    if (!existingItem) {
-      await Item.create({
-        item_name,
-        unit_type,
-        stock_quantity: totalStockUnits,
-        last_cost_price: costPerUnit,
-        last_selling_price: selling_price || 0,
-      });
-    } else {
-      const setFields = { last_cost_price: costPerUnit };
-      if (selling_price) {
-        setFields.last_selling_price = selling_price;
+    const purchase = await runInTransaction(async (session) => {
+      // Purchases are the only way an item enters the catalog — creating one
+      // directly would let it be sold with stock that was never bought.
+      let catalogItem = await Item.findByName(req.shopId, p.item_name, session);
+
+      if (!catalogItem) {
+        const docs = await Item.create(
+          [
+            {
+              shop: ctx.shop,
+              item_name: p.item_name,
+              unit_type: p.unit_type,
+              stock_quantity: 0,
+              last_cost_price: p.costPerUnit,
+              last_selling_price: sellingPrice,
+            },
+          ],
+          session ? { session } : undefined
+        );
+        catalogItem = docs[0];
+      } else {
+        await Item.updateOne(
+          { _id: catalogItem._id },
+          { $set: { last_cost_price: p.costPerUnit, last_selling_price: sellingPrice } },
+          session ? { session } : undefined
+        );
       }
 
-      await Item.updateOne(
-        { item_name },
-        {
-          $inc: { stock_quantity: totalStockUnits },
-          $set: setFields,
-        }
-      );
-    }
+      const created = new Purchase({
+        shop: ctx.shop,
+        vendor_name: p.vendor_name,
+        item_name: catalogItem.item_name,
+        quantity: p.quantity,
+        unit_type: catalogItem.unit_type,
+        amount: p.amount,
+        units_per_pack: p.units_per_pack,
+        payment_mode: p.payment_mode,
+        date: ctx.date,
+        date_key: ctx.date_key,
+        notes: req.body.notes,
+        idempotency_key: idempotencyKey,
+      });
 
-    const purchase = new Purchase({ ...req.body, units_per_pack: unitsPerPack });
-    await purchase.save();
+      await created.save({ session });
+
+      await moveStock({
+        shop: ctx.shop,
+        item_name: catalogItem.item_name,
+        delta: p.totalStockUnits,
+        reason: 'purchase',
+        ref_model: 'Purchase',
+        ref_id: created._id,
+        cost_per_unit: p.costPerUnit,
+        date: ctx.date,
+        date_key: ctx.date_key,
+        session,
+      });
+
+      return created;
+    });
+
     res.status(201).json(purchase);
   } catch (err) {
-    console.error(err);
-    if (err.name === 'ValidationError') {
-      return res.status(400).json({ error: err.message });
-    }
-    res.status(500).json({ error: 'Server error' });
+    sendError(res, err);
   }
 });
 
 router.get('/', async (req, res) => {
   try {
-    const purchases = await Purchase.find(buildDateFilter(req)).sort({ date: -1 });
+    const purchases = await Purchase.find(buildQuery(req)).sort({ date: -1 });
 
     const returns = await PurchaseReturn.find({
+      shop: req.shopId,
       purchase_id: { $in: purchases.map((p) => p._id) },
+      voided_at: null,
     });
+
     const returnsByPurchase = {};
     for (const r of returns) {
       const key = r.purchase_id.toString();
@@ -73,132 +167,217 @@ router.get('/', async (req, res) => {
 
     const enriched = purchases.map((purchase) => {
       const purchaseReturns = returnsByPurchase[purchase._id.toString()] || [];
-      const returned_quantity = purchaseReturns.reduce((sum, r) => sum + r.quantity, 0);
-      const returned_amount = purchaseReturns.reduce((sum, r) => sum + r.refund_amount, 0);
+      const returned_quantity = round3(purchaseReturns.reduce((sum, r) => sum + r.quantity, 0));
+      const returned_amount = round2(purchaseReturns.reduce((sum, r) => sum + r.refund_amount, 0));
+
       return {
         ...purchase.toObject(),
         returned_quantity,
         returned_amount,
-        net_quantity: purchase.quantity - returned_quantity,
-        net_amount: purchase.amount - returned_amount,
+        net_quantity: round3(purchase.quantity - returned_quantity),
+        net_amount: round2(purchase.amount - returned_amount),
       };
     });
 
     res.json(enriched);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Server error' });
+    sendError(res, err);
   }
 });
 
 router.get('/:id', async (req, res) => {
   try {
-    const purchase = await Purchase.findById(req.params.id);
+    const purchase = await Purchase.findOne({ _id: req.params.id, shop: req.shopId });
     if (!purchase) {
       return res.status(404).json({ error: 'Purchase not found' });
     }
     res.json(purchase);
   } catch (err) {
-    console.error(err);
-    if (err.name === 'CastError') {
-      return res.status(400).json({ error: 'Invalid purchase id' });
-    }
-    res.status(500).json({ error: 'Server error' });
+    sendError(res, err);
   }
 });
 
 router.put('/:id', async (req, res) => {
   try {
-    const { vendor_name, item_name, quantity, unit_type, amount, payment_mode, notes, units_per_pack } =
-      req.body;
-
-    const purchase = await Purchase.findById(req.params.id);
+    const purchase = await Purchase.findOne({ _id: req.params.id, shop: req.shopId });
     if (!purchase) {
       return res.status(404).json({ error: 'Purchase not found' });
     }
+    if (purchase.voided_at) {
+      return res
+        .status(400)
+        .json({ error: 'This purchase has been cancelled and cannot be edited' });
+    }
 
-    const oldItemName = purchase.item_name;
+    const returnCount = await PurchaseReturn.countDocuments({
+      shop: req.shopId,
+      purchase_id: purchase._id,
+      voided_at: null,
+    });
+    if (returnCount > 0) {
+      return res.status(400).json({
+        error:
+          'This purchase has returns recorded against it. Cancel the returns first, then edit it.',
+      });
+    }
+
+    const ctx = writeContext(req, req.body.date || purchase.date);
+    const p = resolvePurchase({ ...req.body, item_name: req.body.item_name || purchase.item_name });
+
     const oldUnitsPerPack = packSize(purchase.units_per_pack);
-    const oldTotalUnits = purchase.quantity * oldUnitsPerPack;
+    const oldTotalUnits = round3(purchase.quantity * oldUnitsPerPack);
 
-    const newUnitsPerPack = packSize(units_per_pack);
-    const newTotalUnits = quantity * newUnitsPerPack;
-
-    if (item_name === oldItemName) {
-      // Stock isn't tracked per-purchase (no lot tracking), so we can't know
-      // exactly how much of THIS purchase's stock was consumed. Instead, treat
-      // the edit as applying the (pack-converted) quantity delta to the pooled
-      // stock, and reject if that would drive it negative — i.e. more has
-      // already been sold, credited, or spoiled than the edit would allow for.
-      const item = await Item.findOne({ item_name });
-      if (!item) {
-        return res.status(400).json({ error: `Item "${item_name}" not found in catalog` });
-      }
-
-      const delta = newTotalUnits - oldTotalUnits;
-      const newStock = item.stock_quantity + delta;
-
-      if (newStock < 0) {
-        const minStockUnits = Math.max(0, oldTotalUnits - item.stock_quantity);
-        const minQuantity = Math.ceil(minStockUnits / newUnitsPerPack);
-        return res.status(400).json({
-          error: `Cannot reduce this purchase to ${quantity}: ${oldTotalUnits - item.stock_quantity} stock unit(s) originally added by this purchase have already been sold, credited, or spoiled. Minimum allowed quantity is ${minQuantity}.`,
-        });
-      }
-
-      await Item.updateOne({ item_name }, { $inc: { stock_quantity: delta } });
-    } else {
-      // Item was changed: give back the old item's contribution, then add to the new item.
-      const oldItem = await Item.findOne({ item_name: oldItemName });
-      if (oldItem) {
-        if (oldItem.stock_quantity - oldTotalUnits < 0) {
-          return res.status(400).json({
-            error: `Cannot move this purchase away from "${oldItemName}": removing its ${oldTotalUnits} stock unit(s) would drive "${oldItemName}" stock negative (some have already been sold, credited, or spoiled).`,
-          });
-        }
-        await Item.updateOne({ item_name: oldItemName }, { $inc: { stock_quantity: -oldTotalUnits } });
-      }
-
-      const newItem = await Item.findOne({ item_name });
-      if (!newItem) {
-        return res.status(400).json({ error: `Item "${item_name}" not found in catalog` });
-      }
-      await Item.updateOne({ item_name }, { $inc: { stock_quantity: newTotalUnits } });
+    const newItem = await Item.findByName(req.shopId, p.item_name);
+    if (!newItem) {
+      return res.status(400).json({ error: `Item "${p.item_name}" not found in this shop` });
     }
 
-    purchase.vendor_name = vendor_name;
-    purchase.item_name = item_name;
-    purchase.quantity = quantity;
-    purchase.unit_type = unit_type;
-    purchase.amount = amount;
-    purchase.units_per_pack = newUnitsPerPack;
-    purchase.payment_mode = payment_mode;
-    purchase.notes = notes;
+    // Removing this purchase's stock must not drive the item negative — that
+    // would mean more has already been sold than this purchase ever supplied.
+    const oldItem = await Item.findByName(req.shopId, purchase.item_name);
+    if (oldItem && round3(oldItem.stock_quantity - oldTotalUnits) < 0) {
+      const shortBy = round3(oldTotalUnits - oldItem.stock_quantity);
+      return res.status(400).json({
+        error:
+          `Cannot edit this purchase: ${shortBy} unit(s) of "${purchase.item_name}" that it ` +
+          `supplied have already been sold, credited or spoiled. Cancel those entries first.`,
+      });
+    }
 
-    await purchase.save();
-    res.json(purchase);
+    const updated = await runInTransaction(async (session) => {
+      // Reverse the original contribution, then apply the new one.
+      await moveStock({
+        shop: req.shopId,
+        item_name: purchase.item_name,
+        delta: -oldTotalUnits,
+        reason: 'edit',
+        ref_model: 'Purchase',
+        ref_id: purchase._id,
+        date: ctx.date,
+        date_key: ctx.date_key,
+        note: 'reverse original purchase before edit',
+        allowNegative: true,
+        session,
+      });
+
+      await moveStock({
+        shop: req.shopId,
+        item_name: newItem.item_name,
+        delta: p.totalStockUnits,
+        reason: 'edit',
+        ref_model: 'Purchase',
+        ref_id: purchase._id,
+        cost_per_unit: p.costPerUnit,
+        date: ctx.date,
+        date_key: ctx.date_key,
+        note: 'apply edited purchase',
+        session,
+      });
+
+      await Item.updateOne(
+        { _id: newItem._id },
+        { $set: { last_cost_price: p.costPerUnit } },
+        session ? { session } : undefined
+      );
+
+      purchase.vendor_name = p.vendor_name;
+      purchase.item_name = newItem.item_name;
+      purchase.quantity = p.quantity;
+      purchase.unit_type = newItem.unit_type;
+      purchase.amount = p.amount;
+      purchase.units_per_pack = p.units_per_pack;
+      purchase.payment_mode = p.payment_mode;
+      purchase.notes = req.body.notes;
+      purchase.date = ctx.date;
+      purchase.date_key = ctx.date_key;
+      purchase.updated_at = new Date();
+
+      await purchase.save({ session });
+      return purchase;
+    });
+
+    res.json(updated);
   } catch (err) {
-    console.error(err);
-    if (err.name === 'CastError') {
-      return res.status(400).json({ error: 'Invalid purchase id' });
+    sendError(res, err);
+  }
+});
+
+// Blocker 06a: cancel rather than delete. Removes the stock this purchase added.
+router.delete('/:id', async (req, res) => {
+  try {
+    const purchase = await Purchase.findOne({ _id: req.params.id, shop: req.shopId });
+    if (!purchase) {
+      return res.status(404).json({ error: 'Purchase not found' });
     }
-    if (err.name === 'ValidationError') {
-      return res.status(400).json({ error: err.message });
+    if (purchase.voided_at) {
+      return res.status(400).json({ error: 'This purchase is already cancelled' });
     }
-    res.status(500).json({ error: 'Server error' });
+
+    const returnCount = await PurchaseReturn.countDocuments({
+      shop: req.shopId,
+      purchase_id: purchase._id,
+      voided_at: null,
+    });
+    if (returnCount > 0) {
+      return res.status(400).json({
+        error: 'Cancel the returns recorded against this purchase first.',
+      });
+    }
+
+    const totalUnits = round3(purchase.quantity * packSize(purchase.units_per_pack));
+    const item = await Item.findByName(req.shopId, purchase.item_name);
+
+    if (item && round3(item.stock_quantity - totalUnits) < 0) {
+      const shortBy = round3(totalUnits - item.stock_quantity);
+      return res.status(400).json({
+        error:
+          `Cannot cancel this purchase: ${shortBy} unit(s) of "${purchase.item_name}" it ` +
+          `supplied have already been sold, credited or spoiled.`,
+      });
+    }
+
+    const ctx = writeContext(req);
+
+    const voided = await runInTransaction(async (session) => {
+      await moveStock({
+        shop: req.shopId,
+        item_name: purchase.item_name,
+        delta: -totalUnits,
+        reason: 'void',
+        ref_model: 'Purchase',
+        ref_id: purchase._id,
+        date: ctx.date,
+        date_key: ctx.date_key,
+        note: 'purchase cancelled',
+        allowNegative: true,
+        session,
+      });
+
+      purchase.voided_at = ctx.date;
+      purchase.voided_by = ctx.username;
+      purchase.void_reason = req.body && req.body.reason;
+      purchase.updated_at = new Date();
+
+      await purchase.save({ session });
+      return purchase;
+    });
+
+    res.json({ cancelled: true, purchase: voided });
+  } catch (err) {
+    sendError(res, err);
   }
 });
 
 router.get('/:id/returns', async (req, res) => {
   try {
-    const returns = await PurchaseReturn.find({ purchase_id: req.params.id }).sort({ date: -1 });
+    const returns = await PurchaseReturn.find({
+      shop: req.shopId,
+      purchase_id: req.params.id,
+      voided_at: null,
+    }).sort({ date: -1 });
     res.json(returns);
   } catch (err) {
-    console.error(err);
-    if (err.name === 'CastError') {
-      return res.status(400).json({ error: 'Invalid purchase id' });
-    }
-    res.status(500).json({ error: 'Server error' });
+    sendError(res, err);
   }
 });
 
@@ -206,57 +385,92 @@ router.post('/:id/return', async (req, res) => {
   try {
     const { quantity, reason } = req.body;
 
-    if (!quantity || quantity <= 0) {
+    if (!isPositiveNumber(quantity)) {
       return res.status(400).json({ error: 'Return quantity must be greater than 0' });
     }
 
-    const purchase = await Purchase.findById(req.params.id);
+    const idempotencyKey = idempotencyKeyFrom(req);
+    const existing = await findByIdempotencyKey(PurchaseReturn, req.shopId, idempotencyKey);
+    if (existing) {
+      return res.status(200).json(existing);
+    }
+
+    const purchase = await Purchase.findOne({ _id: req.params.id, shop: req.shopId });
     if (!purchase) {
       return res.status(404).json({ error: 'Purchase not found' });
     }
+    if (purchase.voided_at) {
+      return res.status(400).json({ error: 'This purchase has been cancelled' });
+    }
 
-    const existingReturns = await PurchaseReturn.find({ purchase_id: purchase._id });
-    const alreadyReturned = existingReturns.reduce((sum, r) => sum + r.quantity, 0);
-    const returnable = purchase.quantity - alreadyReturned;
+    const existingReturns = await PurchaseReturn.find({
+      shop: req.shopId,
+      purchase_id: purchase._id,
+      voided_at: null,
+    });
+    const alreadyReturned = round3(existingReturns.reduce((sum, r) => sum + r.quantity, 0));
+    const returnable = round3(purchase.quantity - alreadyReturned);
 
     if (quantity > returnable) {
       return res.status(400).json({
-        error: `Cannot return ${quantity} of "${purchase.item_name}": only ${returnable} unit(s) remain returnable (${purchase.quantity} purchased, ${alreadyReturned} already returned).`,
+        error:
+          `Cannot return ${quantity} of "${purchase.item_name}": only ${returnable} remain ` +
+          `returnable (${purchase.quantity} purchased, ${alreadyReturned} already returned).`,
       });
     }
 
+    const returnQty = round3(quantity);
     const unitsPerPack = packSize(purchase.units_per_pack);
-    const stockImpact = quantity * unitsPerPack;
+    const stockImpact = round3(returnQty * unitsPerPack);
 
-    const item = await Item.findOne({ item_name: purchase.item_name });
-    if (!item || stockImpact > item.stock_quantity) {
+    const item = await Item.findByName(req.shopId, purchase.item_name);
+    if (!item || round3(item.stock_quantity - stockImpact) < 0) {
+      const available = item ? item.stock_quantity : 0;
       return res.status(400).json({
-        error: `Cannot return ${quantity} of "${purchase.item_name}": that represents ${stockImpact} stock unit(s), but only ${item ? item.stock_quantity : 0} are currently in stock (some may have already been sold, credited, or spoiled).`,
+        error:
+          `Cannot return ${returnQty} of "${purchase.item_name}": that is ${stockImpact} stock ` +
+          `unit(s), but only ${available} are on hand (some may already have been sold, ` +
+          `credited or spoiled).`,
       });
     }
 
-    await Item.updateOne({ item_name: purchase.item_name }, { $inc: { stock_quantity: -stockImpact } });
+    const ctx = writeContext(req, req.body.date);
+    // Cost per pack, so refunding N packs returns what those packs cost.
+    const costPerPack = purchase.quantity ? round2(purchase.amount / purchase.quantity) : 0;
 
-    const costPerUnit = purchase.quantity ? purchase.amount / purchase.quantity : 0;
-    const purchaseReturn = new PurchaseReturn({
-      purchase_id: purchase._id,
-      item_name: purchase.item_name,
-      quantity,
-      reason: reason || undefined,
-      refund_amount: quantity * costPerUnit,
+    const purchaseReturn = await runInTransaction(async (session) => {
+      const created = new PurchaseReturn({
+        shop: ctx.shop,
+        purchase_id: purchase._id,
+        item_name: purchase.item_name,
+        quantity: returnQty,
+        reason: reason || undefined,
+        refund_amount: round2(returnQty * costPerPack),
+        date: ctx.date,
+        date_key: ctx.date_key,
+        idempotency_key: idempotencyKey,
+      });
+
+      await created.save({ session });
+
+      await moveStock({
+        shop: ctx.shop,
+        item_name: purchase.item_name,
+        delta: -stockImpact,
+        reason: 'purchase_return',
+        ref_model: 'PurchaseReturn',
+        ref_id: created._id,
+        date: ctx.date,
+        date_key: ctx.date_key,
+        session,
+      });
+
+      return created;
     });
-    await purchaseReturn.save();
 
     res.status(201).json(purchaseReturn);
   } catch (err) {
-    console.error(err);
-    if (err.name === 'CastError') {
-      return res.status(400).json({ error: 'Invalid purchase id' });
-    }
-    if (err.name === 'ValidationError') {
-      return res.status(400).json({ error: err.message });
-    }
-    res.status(500).json({ error: 'Server error' });
+    sendError(res, err);
   }
 });
 

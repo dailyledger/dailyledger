@@ -1,8 +1,14 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Undo2 } from 'lucide-react';
-import { getPurchases, getPurchaseReturns, createPurchaseReturn } from '../api';
+import { Undo2, Ban } from 'lucide-react';
+import {
+  getPurchases,
+  getPurchaseReturns,
+  createPurchaseReturn,
+  cancelPurchase,
+} from '../api';
 import { formatCurrency, formatDate } from '../format';
+import ConfirmDialog from '../components/ConfirmDialog';
 
 function PurchaseReturnModal({ purchase, onClose, onReturned }) {
   const [returns, setReturns] = useState([]);
@@ -125,6 +131,8 @@ export default function PurchasesHistory() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [returnPurchase, setReturnPurchase] = useState(null);
+  const [toCancel, setToCancel] = useState(null);
+  const [cancelling, setCancelling] = useState(false);
 
   const loadPurchases = () => {
     setLoading(true);
@@ -142,6 +150,29 @@ export default function PurchasesHistory() {
     e.preventDefault();
     e.stopPropagation();
     setReturnPurchase(purchase);
+  };
+
+  const openCancel = (e, purchase) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setToCancel(purchase);
+  };
+
+  // Cancelling removes the stock this purchase added. The server refuses if any
+  // of it has already been sold, since that stock genuinely left the shop.
+  const confirmCancel = async () => {
+    setCancelling(true);
+    setError('');
+    try {
+      await cancelPurchase(toCancel._id, 'cancelled from purchases list');
+      setToCancel(null);
+      loadPurchases();
+    } catch (err) {
+      setError(err.message);
+      setToCancel(null);
+    } finally {
+      setCancelling(false);
+    }
   };
 
   return (
@@ -196,6 +227,15 @@ export default function PurchasesHistory() {
                   <Undo2 size={14} style={{ marginRight: 4, verticalAlign: -2 }} />
                   Return
                 </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={(e) => openCancel(e, p)}
+                  aria-label="Cancel this purchase"
+                >
+                  <Ban size={14} style={{ marginRight: 4, verticalAlign: -2 }} />
+                  Cancel
+                </button>
                 <span className="list-item-amount">
                   {formatCurrency(p.net_amount ?? p.amount)}
                 </span>
@@ -212,6 +252,24 @@ export default function PurchasesHistory() {
           onReturned={loadPurchases}
         />
       )}
+
+      <ConfirmDialog
+        open={Boolean(toCancel)}
+        danger
+        title="Cancel this purchase?"
+        message={
+          toCancel
+            ? `${formatCurrency(toCancel.amount)} from ${toCancel.vendor_name} will be removed ` +
+              `from your reports and the stock it added taken back out. This is refused if any ` +
+              `of it has already been sold.`
+            : ''
+        }
+        confirmLabel="Cancel purchase"
+        cancelLabel="Keep it"
+        busy={cancelling}
+        onConfirm={confirmCancel}
+        onCancel={() => setToCancel(null)}
+      />
     </div>
   );
 }

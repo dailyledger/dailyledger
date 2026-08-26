@@ -113,8 +113,13 @@ export default function Inventory() {
               </thead>
               <tbody>
                 {sortedRows.map((row) => {
+                  // Negative stock means an entry is missing somewhere — usually a
+                  // purchase that was never recorded. Surface it above everything
+                  // else so the owner can go and find the gap.
+                  const needsReview = row.stock_quantity < 0;
                   const outOfStock = row.stock_quantity === 0;
-                  const lowStock = !outOfStock && row.stock_quantity <= LOW_STOCK_THRESHOLD;
+                  const lowStock =
+                    !needsReview && !outOfStock && row.stock_quantity <= LOW_STOCK_THRESHOLD;
                   return (
                     <tr
                       key={row._id}
@@ -127,6 +132,11 @@ export default function Inventory() {
                       <td className="num">{formatCurrency(row.last_selling_price)}</td>
                       <td className="num">{formatCurrency(row.stock_value)}</td>
                       <td>
+                        {needsReview && (
+                          <span className="badge-review" title="More has been sold than was ever purchased — a purchase entry is probably missing">
+                            Check entries
+                          </span>
+                        )}
                         {outOfStock && <span className="badge badge-out-of-stock">No Stock</span>}
                         {lowStock && <span className="badge badge-unpaid">Low Stock</span>}
                       </td>
