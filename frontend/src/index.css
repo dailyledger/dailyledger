@@ -850,21 +850,6 @@ button, input, select, textarea {
 }
 
 
-/* ---------- dashboard detail ---------- */
-
-.stat-note {
-  margin-top: 4px;
-  font-size: 0.78rem;
-  color: var(--color-muted);
-  line-height: 1.35;
-}
-
-.dashboard-footnote {
-  margin: 10px 2px 0;
-  font-size: 0.78rem;
-  color: var(--color-muted);
-}
-
 /* ---------- modal ---------- */
 
 .modal-backdrop {

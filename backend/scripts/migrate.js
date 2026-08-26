@@ -114,6 +114,17 @@ async function main() {
     }
   }
 
+  // "spoiled" was removed as a reason: it overlapped with "expired", since goods
+  // going bad over time is the same event under either label. "damaged" is kept
+  // for physical damage, which is a different cause.
+  const reasonResult = await Spoilage.updateMany(
+    { reason: 'spoiled' },
+    { $set: { reason: 'expired' } }
+  );
+  if (reasonResult.modifiedCount) {
+    console.log(`Spoilage: moved ${reasonResult.modifiedCount} "spoiled" record(s) to "expired"`);
+  }
+
   // Give the movement log an opening balance so future changes are traceable.
   const existingMovements = await StockMovement.countDocuments({ shop: shop._id });
   if (existingMovements === 0) {

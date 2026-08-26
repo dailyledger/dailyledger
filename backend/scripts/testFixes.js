@@ -227,7 +227,7 @@ async function main() {
     item_name: 'Dal',
     unit_type: 'kg',
     quantity: 1,
-    reason: 'spoiled',
+    reason: 'expired',
   });
   check('spoilage created', spoil.status === 201, JSON.stringify(spoil.body));
   check(
@@ -241,7 +241,7 @@ async function main() {
     item_name: 'Dal',
     unit_type: 'kg',
     quantity: 2,
-    reason: 'spoiled',
+    reason: 'expired',
   });
   const dalAfter = await stockOf(shopA._id, 'Dal');
   check(

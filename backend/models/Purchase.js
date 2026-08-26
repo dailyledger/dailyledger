@@ -25,6 +25,13 @@ const purchaseSchema = new mongoose.Schema({
     enum: ['kg', 'litre', 'piece'],
     required: true,
   },
+  // Price for one unit of `quantity` — so per pack when units_per_pack > 1.
+  // Stored rather than derived so vendor price history stays exact.
+  rate: {
+    type: Number,
+    default: 0,
+  },
+  // quantity x rate, computed on the server.
   amount: {
     type: Number,
     required: true,

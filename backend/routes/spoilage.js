@@ -15,7 +15,7 @@ const {
   describeShortfalls,
 } = require('../utils/ledger');
 
-const REASONS = ['spoiled', 'expired', 'damaged'];
+const REASONS = ['expired', 'damaged'];
 
 /**
  * Blocker 02/04: spoilage is valued at what the goods cost us, taken from the

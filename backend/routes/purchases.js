@@ -35,9 +35,6 @@ function resolvePurchase(body) {
   if (!isPositiveNumber(body.quantity)) {
     throw new BadRequestError('Quantity must be greater than 0');
   }
-  if (!isPositiveNumber(body.amount)) {
-    throw new BadRequestError('Amount must be greater than 0');
-  }
   if (!['kg', 'litre', 'piece'].includes(body.unit_type)) {
     throw new BadRequestError('Unit type must be kg, litre or piece');
   }
@@ -47,7 +44,23 @@ function resolvePurchase(body) {
 
   const unitsPerPack = packSize(body.units_per_pack);
   const quantity = round3(body.quantity);
-  const amount = round2(body.amount);
+
+  // Blocker 04 again: the total is quantity x rate, and the server does that
+  // multiplication. `amount` is still accepted so older clients and existing
+  // records keep working, but a rate always wins over a client-sent total.
+  let rate;
+  let amount;
+
+  if (isPositiveNumber(body.rate)) {
+    rate = round2(body.rate);
+    amount = round2(quantity * rate);
+  } else if (isPositiveNumber(body.amount)) {
+    amount = round2(body.amount);
+    rate = round2(amount / quantity);
+  } else {
+    throw new BadRequestError('Rate must be greater than 0');
+  }
+
   const totalStockUnits = round3(quantity * unitsPerPack);
 
   return {
@@ -55,10 +68,12 @@ function resolvePurchase(body) {
     item_name: String(body.item_name).trim(),
     unit_type: body.unit_type,
     quantity,
+    rate,
     amount,
     units_per_pack: unitsPerPack,
     payment_mode: body.payment_mode,
     totalStockUnits,
+    // Cost per stock unit: a 50kg sack at 3000 is 60/kg on the shelf.
     costPerUnit: totalStockUnits ? round2(amount / totalStockUnits) : 0,
   };
 }
@@ -116,6 +131,7 @@ router.post('/', async (req, res) => {
         item_name: catalogItem.item_name,
         quantity: p.quantity,
         unit_type: catalogItem.unit_type,
+        rate: p.rate,
         amount: p.amount,
         units_per_pack: p.units_per_pack,
         payment_mode: p.payment_mode,
@@ -284,6 +300,7 @@ router.put('/:id', async (req, res) => {
       purchase.item_name = newItem.item_name;
       purchase.quantity = p.quantity;
       purchase.unit_type = newItem.unit_type;
+      purchase.rate = p.rate;
       purchase.amount = p.amount;
       purchase.units_per_pack = p.units_per_pack;
       purchase.payment_mode = p.payment_mode;

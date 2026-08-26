@@ -31,9 +31,12 @@ const spoilageSchema = new mongoose.Schema({
     required: true,
     default: 0,
   },
+  // "spoiled" was dropped as a third option because it overlapped with
+  // "expired" — goods going bad over time is the same event either way. Existing
+  // "spoiled" records were migrated to "expired" (see scripts/migrate.js).
   reason: {
     type: String,
-    enum: ['spoiled', 'expired', 'damaged'],
+    enum: ['expired', 'damaged'],
     required: true,
   },
   date: {

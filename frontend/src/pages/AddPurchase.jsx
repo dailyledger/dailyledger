@@ -14,7 +14,7 @@ export default function AddPurchase() {
     item_name: '',
     quantity: '',
     unit_type: 'piece',
-    amount: '',
+    rate: '',
     units_per_pack: '',
     selling_price: '',
     payment_mode: 'cash',
@@ -37,7 +37,8 @@ export default function AddPurchase() {
           item_name: purchase.item_name,
           quantity: purchase.quantity,
           unit_type: purchase.unit_type,
-          amount: purchase.amount,
+          // Older records predate the rate field, so derive it from the total.
+          rate: purchase.rate || (purchase.quantity ? purchase.amount / purchase.quantity : ''),
           units_per_pack: purchase.units_per_pack > 1 ? purchase.units_per_pack : '',
           payment_mode: purchase.payment_mode,
           notes: purchase.notes || '',
@@ -57,6 +58,17 @@ export default function AddPurchase() {
 
   const update = (field, value) => setForm((prev) => ({ ...prev, [field]: value }));
 
+  const packUnits = Number(form.units_per_pack) > 1 ? Number(form.units_per_pack) : 1;
+
+  // Quantity counts packs when a pack size is set, so the rate is per pack and
+  // the label has to say so.
+  const rateUnitLabel = packUnits > 1 ? `per pack of ${packUnits} ${form.unit_type}` : `per ${form.unit_type}`;
+
+  // Preview only. The server multiplies quantity x rate itself and ignores any
+  // total we might send, so this can never disagree with what gets stored.
+  const totalAmount =
+    form.quantity && form.rate ? Number((Number(form.quantity) * Number(form.rate)).toFixed(2)) : '';
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -69,12 +81,19 @@ export default function AddPurchase() {
       return;
     }
 
+    if (!form.rate || Number(form.rate) <= 0) {
+      setError('Rate is required and must be greater than 0.');
+      setSubmitting(false);
+      return;
+    }
+
+    // No total is sent — the server computes quantity x rate.
     const payload = {
       vendor_name: form.vendor_name,
       item_name: form.item_name,
       quantity: Number(form.quantity),
       unit_type: form.unit_type,
-      amount: Number(form.amount),
+      rate: Number(form.rate),
       units_per_pack: form.units_per_pack ? Number(form.units_per_pack) : 1,
       selling_price: form.selling_price ? Number(form.selling_price) : undefined,
       payment_mode: form.payment_mode,
@@ -180,34 +199,48 @@ export default function AddPurchase() {
 
         <div className="line-item-row">
           <div className="form-group">
-            <label className="form-label">Amount</label>
+            <label className="form-label">
+              Rate
+              <span className="stock-hint">{rateUnitLabel}</span>
+            </label>
             <input
               className="form-input"
               type="number"
-              min="0"
+              min="0.01"
               step="any"
-              value={form.amount}
-              onChange={(e) => update('amount', e.target.value)}
+              value={form.rate}
+              onChange={(e) => update('rate', e.target.value)}
               required
             />
           </div>
 
-          {!isEditMode && (
-            <div className="form-group">
-              <label className="form-label">Selling price</label>
-              <input
-                className="form-input"
-                type="number"
-                min="0.01"
-                step="any"
-                value={form.selling_price}
-                onChange={(e) => update('selling_price', e.target.value)}
-                placeholder="Sets the initial price to suggest at next sale"
-                required
-              />
-            </div>
-          )}
+          <div className="form-group">
+            <label className="form-label">Total Amount</label>
+            <input
+              className="form-input"
+              type="text"
+              value={totalAmount === '' ? '—' : `₹${totalAmount}`}
+              readOnly
+              disabled
+            />
+          </div>
         </div>
+
+        {!isEditMode && (
+          <div className="form-group">
+            <label className="form-label">Selling price</label>
+            <input
+              className="form-input"
+              type="number"
+              min="0.01"
+              step="any"
+              value={form.selling_price}
+              onChange={(e) => update('selling_price', e.target.value)}
+              placeholder="Sets the initial price to suggest at next sale"
+              required
+            />
+          </div>
+        )}
 
         <div className="form-group">
           <label className="form-label">Payment mode</label>

@@ -10,7 +10,7 @@ import {
 import StockWarningDialog from '../components/StockWarningDialog';
 
 const UNIT_TYPES = ['kg', 'litre', 'piece'];
-const REASONS = ['spoiled', 'expired', 'damaged'];
+const REASONS = ['expired', 'damaged'];
 
 export default function AddSpoilage() {
   const navigate = useNavigate();
@@ -24,7 +24,7 @@ export default function AddSpoilage() {
     quantity: '',
     unit_type: 'piece',
     estimated_value: '',
-    reason: 'spoiled',
+    reason: 'expired',
     notes: '',
   });
   const [error, setError] = useState('');
@@ -252,10 +252,6 @@ export default function AddSpoilage() {
             readOnly
             disabled
           />
-          <p className="stat-note">
-            Calculated from this item&apos;s cost price, so the loss reflects what the goods
-            actually cost you.
-          </p>
         </div>
 
         <div className="form-group">
