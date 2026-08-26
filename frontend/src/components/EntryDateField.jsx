@@ -43,7 +43,6 @@ export default function EntryDateField({ value, onChange }) {
   return (
     <DateField
       label="Date"
-      hint="leave blank for today"
       selected={value}
       onChange={onChange}
       placeholder="Today"
