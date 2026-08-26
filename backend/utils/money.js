@@ -30,4 +30,35 @@ function isNonNegativeNumber(value) {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0;
 }
 
-module.exports = { round2, round3, isPositiveNumber, isNonNegativeNumber };
+// Sanity ceilings. Nobody types these by accident, but a stuck key can, and an
+// unnoticed 999999999999 wrecks every total it touches until someone finds it.
+const MAX_UNIT_AMOUNT = 10000000; // ₹1 crore for one kg / litre / piece
+const MAX_QUANTITY = 1000000; // a million units in one line
+
+function isSaneAmount(value) {
+  return isNonNegativeNumber(value) && value <= MAX_UNIT_AMOUNT;
+}
+
+function isSaneQuantity(value) {
+  return isPositiveNumber(value) && value <= MAX_QUANTITY;
+}
+
+// Item names are used as display text in tables; an unbounded one pushes every
+// other column off screen.
+const MAX_ITEM_NAME = 60;
+const MAX_PARTY_NAME = 80;
+const MAX_NOTES = 500;
+
+module.exports = {
+  round2,
+  round3,
+  isPositiveNumber,
+  isNonNegativeNumber,
+  isSaneAmount,
+  isSaneQuantity,
+  MAX_UNIT_AMOUNT,
+  MAX_QUANTITY,
+  MAX_ITEM_NAME,
+  MAX_PARTY_NAME,
+  MAX_NOTES,
+};

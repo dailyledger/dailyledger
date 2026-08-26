@@ -4,7 +4,16 @@ const Credit = require('../models/Credit');
 const Item = require('../models/Item');
 const buildQuery = require('../utils/dateFilter');
 const { BadRequestError } = require('../utils/dateFilter');
-const { round2, round3, isPositiveNumber, isNonNegativeNumber } = require('../utils/money');
+const {
+  round2,
+  round3,
+  isPositiveNumber,
+  isSaneAmount,
+  isSaneQuantity,
+  MAX_UNIT_AMOUNT,
+  MAX_QUANTITY,
+  MAX_PARTY_NAME,
+} = require('../utils/money');
 const { findShortfalls, moveStock } = require('../utils/stock');
 const { runInTransaction } = require('../utils/tx');
 const {
@@ -30,11 +39,15 @@ async function resolveLines(shop, rawItems, previousLines = []) {
     if (!raw || typeof raw.item_name !== 'string' || !raw.item_name.trim()) {
       throw new BadRequestError('Every line needs an item name');
     }
-    if (!isPositiveNumber(raw.quantity)) {
-      throw new BadRequestError(`Quantity for "${raw.item_name}" must be greater than 0`);
+    if (!isSaneQuantity(raw.quantity)) {
+      throw new BadRequestError(
+        `Quantity for "${raw.item_name}" must be between 0 and ${MAX_QUANTITY}`
+      );
     }
-    if (!isNonNegativeNumber(raw.price_per_unit)) {
-      throw new BadRequestError(`Price for "${raw.item_name}" must be 0 or more`);
+    if (!isSaneAmount(raw.price_per_unit)) {
+      throw new BadRequestError(
+        `Price for "${raw.item_name}" must be between 0 and ${MAX_UNIT_AMOUNT}`
+      );
     }
 
     const catalogItem = await Item.findByName(shop, raw.item_name);
@@ -65,6 +78,19 @@ async function resolveLines(shop, rawItems, previousLines = []) {
     });
   }
 
+  // Same reasoning as sales: an exact repeat is a double-entry mistake, while the
+  // same item at a different price is a legitimate part-bargained line.
+  const seen = new Set();
+  for (const line of lines) {
+    const signature = `${line.item_name.toLowerCase()}|${line.price_per_unit}`;
+    if (seen.has(signature)) {
+      throw new BadRequestError(
+        `"${line.item_name}" is listed twice at the same price — combine it into one line`
+      );
+    }
+    seen.add(signature);
+  }
+
   return lines;
 }
 
@@ -87,6 +113,11 @@ router.post('/', async (req, res) => {
 
     if (!req.body.customer_name || !String(req.body.customer_name).trim()) {
       return res.status(400).json({ error: 'Customer name is required' });
+    }
+    if (String(req.body.customer_name).trim().length > MAX_PARTY_NAME) {
+      return res
+        .status(400)
+        .json({ error: `Customer name must be ${MAX_PARTY_NAME} characters or fewer` });
     }
 
     const ctx = writeContext(req, req.body.date);

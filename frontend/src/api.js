@@ -112,6 +112,8 @@ export const updateSale = (id, payload) => put(`/sales/${id}`, payload);
 export const cancelSale = (id, reason) => del(`/sales/${id}`, { reason });
 export const getSaleReturns = (id) => request(`/sales/${id}/returns`);
 export const createSaleReturn = (id, payload, key) => post(`/sales/${id}/return`, payload, key);
+export const cancelSaleReturn = (id, returnId, allowNegative) =>
+  del(`/sales/${id}/return/${returnId}`, allowNegative ? { allow_negative: true } : {});
 
 export const getPurchases = (range) => request(withDateRange('/purchases', range));
 export const getPurchase = (id) => request(`/purchases/${id}`);
@@ -121,6 +123,8 @@ export const cancelPurchase = (id, reason) => del(`/purchases/${id}`, { reason }
 export const getPurchaseReturns = (id) => request(`/purchases/${id}/returns`);
 export const createPurchaseReturn = (id, payload, key) =>
   post(`/purchases/${id}/return`, payload, key);
+export const cancelPurchaseReturn = (id, returnId) =>
+  del(`/purchases/${id}/return/${returnId}`);
 
 export const getCredits = (range) => request(withDateRange('/credits', range));
 export const getCredit = (id) => request(`/credits/${id}`);

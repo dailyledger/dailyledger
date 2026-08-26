@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { getItems, createSale, getSale, updateSale, newIdempotencyKey } from '../api';
 import { formatCurrency } from '../format';
 import StockWarningDialog from '../components/StockWarningDialog';
+import EntryDateField, { entryDatePayload } from '../components/EntryDateField';
 
 const UNIT_TYPES = ['kg', 'litre', 'piece'];
 
@@ -31,6 +32,7 @@ export default function AddSale() {
   const [submitting, setSubmitting] = useState(false);
   const [loading, setLoading] = useState(isEditMode);
   const [shortfalls, setShortfalls] = useState(null);
+  const [entryDate, setEntryDate] = useState(null);
 
   // One key per attempt at this form, reused across a retry/confirm so the server
   // recognises a repeat rather than storing a second sale.
@@ -70,6 +72,7 @@ export default function AddSale() {
           }))
         );
         setPaymentMode(sale.payment_mode);
+        setEntryDate(sale.date ? new Date(sale.date) : null);
         setNotes(sale.notes || '');
       })
       .catch((err) => {
@@ -150,6 +153,7 @@ export default function AddSale() {
     })),
     payment_mode: paymentMode,
     notes: notes || undefined,
+    ...entryDatePayload(entryDate),
     ...(allowNegative ? { allow_negative: true } : {}),
   });
 
@@ -314,6 +318,8 @@ export default function AddSale() {
           <span>Total</span>
           <span>{formatCurrency(grandTotal)}</span>
         </div>
+
+        <EntryDateField value={entryDate} onChange={setEntryDate} />
 
         <div className="form-group">
           <label className="form-label">Payment mode</label>

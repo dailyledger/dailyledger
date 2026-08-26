@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { getItems, createCredit, getCredit, updateCredit, newIdempotencyKey } from '../api';
 import { formatCurrency } from '../format';
 import StockWarningDialog from '../components/StockWarningDialog';
+import EntryDateField, { entryDatePayload } from '../components/EntryDateField';
 
 const UNIT_TYPES = ['kg', 'litre', 'piece'];
 
@@ -31,6 +32,7 @@ export default function AddCredit() {
   const [success, setSuccess] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [shortfalls, setShortfalls] = useState(null);
+  const [entryDate, setEntryDate] = useState(null);
   const idempotencyKey = useRef(newIdempotencyKey());
   const [loading, setLoading] = useState(isEditMode);
 
@@ -70,6 +72,7 @@ export default function AddCredit() {
           }))
         );
         setNotes(credit.notes || '');
+        setEntryDate(credit.date ? new Date(credit.date) : null);
       })
       .catch((err) => {
         if (!cancelled) setError(err.message);
@@ -150,6 +153,7 @@ export default function AddCredit() {
       bargained: line.bargained,
     })),
     notes: notes || undefined,
+    ...entryDatePayload(entryDate),
     ...(allowNegative ? { allow_negative: true } : {}),
   });
 
@@ -332,6 +336,8 @@ export default function AddCredit() {
           <span>Total</span>
           <span>{formatCurrency(grandTotal)}</span>
         </div>
+
+        <EntryDateField value={entryDate} onChange={setEntryDate} />
 
         <div className="form-group">
           <label className="form-label">Notes (optional)</label>

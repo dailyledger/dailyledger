@@ -5,6 +5,7 @@ import {
   getSales,
   getSaleReturns,
   createSaleReturn,
+  cancelSaleReturn,
   cancelSale as cancelSaleRequest,
 } from '../api';
 import { formatCurrency, formatDate } from '../format';
@@ -37,6 +38,8 @@ function ReturnModal({ sale, onClose, onReturned }) {
   const [reason, setReason] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [undoing, setUndoing] = useState(null);
+  const [needsConfirm, setNeedsConfirm] = useState(null);
 
   const loadReturns = () => {
     setLoadingReturns(true);
@@ -53,6 +56,28 @@ function ReturnModal({ sale, onClose, onReturned }) {
 
   const alreadyReturnedFor = (itemName) =>
     returns.filter((r) => r.item_name === itemName).reduce((sum, r) => sum + r.quantity, 0);
+
+  // Undoing a sales return takes the goods back off the shelf, which can run the
+  // count negative if they were sold again meanwhile. That case asks first, using
+  // the same warn-then-confirm shape as the entry forms.
+  const undoReturn = async (r, force = false) => {
+    setError('');
+    setUndoing(r._id);
+    try {
+      await cancelSaleReturn(sale._id, r._id, force);
+      setNeedsConfirm(null);
+      loadReturns();
+      onReturned();
+    } catch (err) {
+      if (err.needsStockConfirmation) {
+        setNeedsConfirm({ id: r._id, message: err.message });
+      } else {
+        setError(err.message);
+      }
+    } finally {
+      setUndoing(null);
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -97,12 +122,44 @@ function ReturnModal({ sale, onClose, onReturned }) {
             <div className="form-label" style={{ marginBottom: 8 }}>
               Already returned
             </div>
+            {/*
+              Each return can be undone. Without this a return entered by mistake
+              locked the sale for good: the sale refused to be edited or cancelled
+              until its returns were gone, and there was no way to remove one.
+            */}
             {returns.map((r) => (
-              <div key={r._id} className="list-item-sub">
-                {r.quantity} × {r.item_name} — {formatCurrency(r.refund_amount)}
-                {r.reason ? ` (${r.reason})` : ''}
+              <div key={r._id} className="return-row">
+                <span className="list-item-sub">
+                  {r.quantity} × {r.item_name} — {formatCurrency(r.refund_amount)}
+                  {r.reason ? ` (${r.reason})` : ''}
+                </span>
+                {needsConfirm && needsConfirm.id === r._id ? (
+                  <button
+                    type="button"
+                    className="btn btn-danger btn-sm"
+                    onClick={() => undoReturn(r, true)}
+                    disabled={undoing === r._id}
+                    title={needsConfirm.message}
+                  >
+                    {undoing === r._id ? '...' : 'Undo anyway'}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => undoReturn(r)}
+                    disabled={undoing === r._id}
+                  >
+                    {undoing === r._id ? '...' : 'Undo'}
+                  </button>
+                )}
               </div>
             ))}
+            {needsConfirm && (
+              <div className="row-warning" style={{ marginTop: 8 }}>
+                {needsConfirm.message} — stock will go negative.
+              </div>
+            )}
           </div>
         )}
 

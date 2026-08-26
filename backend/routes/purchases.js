@@ -5,7 +5,17 @@ const Item = require('../models/Item');
 const PurchaseReturn = require('../models/PurchaseReturn');
 const buildQuery = require('../utils/dateFilter');
 const { BadRequestError } = require('../utils/dateFilter');
-const { round2, round3, isPositiveNumber } = require('../utils/money');
+const {
+  round2,
+  round3,
+  isPositiveNumber,
+  isSaneAmount,
+  isSaneQuantity,
+  MAX_UNIT_AMOUNT,
+  MAX_QUANTITY,
+  MAX_ITEM_NAME,
+  MAX_PARTY_NAME,
+} = require('../utils/money');
 const { moveStock } = require('../utils/stock');
 const { runInTransaction } = require('../utils/tx');
 const {
@@ -32,8 +42,16 @@ function resolvePurchase(body) {
   if (!body.item_name || !String(body.item_name).trim()) {
     throw new BadRequestError('Item name is required');
   }
-  if (!isPositiveNumber(body.quantity)) {
-    throw new BadRequestError('Quantity must be greater than 0');
+  // Item names are column text in the inventory and report tables. An unbounded
+  // one stretched the table until every other column was pushed off screen.
+  if (String(body.item_name).trim().length > MAX_ITEM_NAME) {
+    throw new BadRequestError(`Item name must be ${MAX_ITEM_NAME} characters or fewer`);
+  }
+  if (String(body.vendor_name).trim().length > MAX_PARTY_NAME) {
+    throw new BadRequestError(`Vendor name must be ${MAX_PARTY_NAME} characters or fewer`);
+  }
+  if (!isSaneQuantity(body.quantity)) {
+    throw new BadRequestError(`Quantity must be between 0 and ${MAX_QUANTITY}`);
   }
   if (!['kg', 'litre', 'piece'].includes(body.unit_type)) {
     throw new BadRequestError('Unit type must be kg, litre or piece');
@@ -52,11 +70,17 @@ function resolvePurchase(body) {
   let amount;
 
   if (isPositiveNumber(body.rate)) {
+    if (!isSaneAmount(body.rate)) {
+      throw new BadRequestError(`Rate must be between 0 and ${MAX_UNIT_AMOUNT}`);
+    }
     rate = round2(body.rate);
     amount = round2(quantity * rate);
   } else if (isPositiveNumber(body.amount)) {
     amount = round2(body.amount);
     rate = round2(amount / quantity);
+    if (!isSaneAmount(rate)) {
+      throw new BadRequestError(`Rate must be between 0 and ${MAX_UNIT_AMOUNT}`);
+    }
   } else {
     throw new BadRequestError('Rate must be greater than 0');
   }
@@ -486,6 +510,67 @@ router.post('/:id/return', async (req, res) => {
     });
 
     res.status(201).json(purchaseReturn);
+  } catch (err) {
+    sendError(res, err);
+  }
+});
+
+/**
+ * Cancel a return.
+ *
+ * Without this, one mistaken return froze its purchase permanently: the purchase
+ * refused to be edited or cancelled "until the returns are cancelled", and there
+ * was no way to cancel a return.
+ *
+ * A purchase return took goods off the shelf and sent them back to the vendor, so
+ * undoing it puts them back — that can never run the count negative.
+ */
+router.delete('/:id/return/:returnId', async (req, res) => {
+  try {
+    const purchaseReturn = await PurchaseReturn.findOne({
+      _id: req.params.returnId,
+      purchase_id: req.params.id,
+      shop: req.shopId,
+    });
+
+    if (!purchaseReturn) {
+      return res.status(404).json({ error: 'Return not found' });
+    }
+    if (purchaseReturn.voided_at) {
+      return res.status(400).json({ error: 'This return is already cancelled' });
+    }
+
+    const purchase = await Purchase.findOne({ _id: req.params.id, shop: req.shopId });
+    if (!purchase) {
+      return res.status(404).json({ error: 'Purchase not found' });
+    }
+
+    const unitsPerPack = packSize(purchase.units_per_pack);
+    const stockBack = round3(purchaseReturn.quantity * unitsPerPack);
+    const ctx = writeContext(req);
+
+    const voided = await runInTransaction(async (session) => {
+      await moveStock({
+        shop: req.shopId,
+        item_name: purchaseReturn.item_name,
+        delta: stockBack,
+        reason: 'void',
+        ref_model: 'PurchaseReturn',
+        ref_id: purchaseReturn._id,
+        date: ctx.date,
+        date_key: ctx.date_key,
+        note: 'purchase return cancelled',
+        allowNegative: true,
+        session,
+      });
+
+      purchaseReturn.voided_at = ctx.date;
+      purchaseReturn.voided_by = ctx.username;
+      await purchaseReturn.save({ session });
+      return purchaseReturn;
+    });
+
+    res.json({ cancelled: true, return: voided });
   } catch (err) {
     sendError(res, err);
   }

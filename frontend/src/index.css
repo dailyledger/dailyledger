@@ -1119,3 +1119,24 @@ button, input, select, textarea {
     grid-template-columns: 1fr;
   }
 }
+
+/* A long item name used to stretch the inventory/report tables until every other
+   column was pushed off screen. Names are capped at 60 chars on input now; this
+   truncates anything already stored that is longer. */
+.report-table td:first-child {
+  max-width: 22ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Row in the "already returned" list, with its Undo button. */
+.return-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 0;
+  border-top: 1px solid var(--color-border);
+}
+.return-row:first-of-type { border-top: none; }

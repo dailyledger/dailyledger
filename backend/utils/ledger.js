@@ -9,11 +9,27 @@ const { BadRequestError } = require('./dateFilter');
  * `date` may be supplied by the client for back-dated entries, but `date_key` is
  * always derived here from the shop's timezone — never taken from the client.
  */
+// Back-dating is normal — the shop was busy and yesterday's book gets entered the
+// next morning. Forward-dating never is: a mistyped year hides the entry in a
+// month nobody will look at while still counting in the all-time totals.
+const MAX_BACKDATE_DAYS = 365;
+
 function writeContext(req, suppliedDate) {
   const date = suppliedDate ? new Date(suppliedDate) : new Date();
 
   if (Number.isNaN(date.getTime())) {
     throw new BadRequestError('Invalid date');
+  }
+
+  if (suppliedDate) {
+    const now = Date.now();
+    // A couple of minutes of slack, so a phone with a slightly fast clock is fine.
+    if (date.getTime() > now + 2 * 60 * 1000) {
+      throw new BadRequestError('Date cannot be in the future');
+    }
+    if (date.getTime() < now - MAX_BACKDATE_DAYS * 24 * 60 * 60 * 1000) {
+      throw new BadRequestError(`Date cannot be more than ${MAX_BACKDATE_DAYS} days ago`);
+    }
   }
 
   return {
@@ -95,4 +111,5 @@ module.exports = {
   idempotencyKeyFrom,
   sendError,
   describeShortfalls,
+  MAX_BACKDATE_DAYS,
 };

@@ -8,6 +8,7 @@ import {
   newIdempotencyKey,
 } from '../api';
 import StockWarningDialog from '../components/StockWarningDialog';
+import EntryDateField, { entryDatePayload } from '../components/EntryDateField';
 
 const UNIT_TYPES = ['kg', 'litre', 'piece'];
 const REASONS = ['expired', 'damaged'];
@@ -31,6 +32,7 @@ export default function AddSpoilage() {
   const [success, setSuccess] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [shortfalls, setShortfalls] = useState(null);
+  const [entryDate, setEntryDate] = useState(null);
   const idempotencyKey = useRef(newIdempotencyKey());
   const [loading, setLoading] = useState(isEditMode);
 
@@ -68,6 +70,7 @@ export default function AddSpoilage() {
           reason: entry.reason,
           notes: entry.notes || '',
         });
+        setEntryDate(entry.date ? new Date(entry.date) : null);
       })
       .catch((err) => {
         if (!cancelled) setError(err.message);
@@ -127,6 +130,7 @@ export default function AddSpoilage() {
     unit_type: form.unit_type,
     reason: form.reason,
     notes: form.notes || undefined,
+    ...entryDatePayload(entryDate),
     ...(allowNegative ? { allow_negative: true } : {}),
   });
 
@@ -253,6 +257,8 @@ export default function AddSpoilage() {
             disabled
           />
         </div>
+
+        <EntryDateField value={entryDate} onChange={setEntryDate} />
 
         <div className="form-group">
           <label className="form-label">Reason</label>

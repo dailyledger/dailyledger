@@ -5,6 +5,7 @@ import {
   getPurchases,
   getPurchaseReturns,
   createPurchaseReturn,
+  cancelPurchaseReturn,
   cancelPurchase,
 } from '../api';
 import { formatCurrency, formatDate } from '../format';
@@ -17,6 +18,7 @@ function PurchaseReturnModal({ purchase, onClose, onReturned }) {
   const [reason, setReason] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [undoing, setUndoing] = useState(null);
 
   const loadReturns = () => {
     setLoadingReturns(true);
@@ -33,6 +35,23 @@ function PurchaseReturnModal({ purchase, onClose, onReturned }) {
 
   const alreadyReturned = returns.reduce((sum, r) => sum + r.quantity, 0);
   const returnable = purchase.quantity - alreadyReturned;
+
+  // Undoing a purchase return puts the goods back on our shelf, so it can never
+  // run the count negative — no confirm needed. Without this, one mistaken return
+  // locked the purchase permanently against editing or cancelling.
+  const undoReturn = async (r) => {
+    setError('');
+    setUndoing(r._id);
+    try {
+      await cancelPurchaseReturn(purchase._id, r._id);
+      loadReturns();
+      onReturned();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setUndoing(null);
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -73,9 +92,19 @@ function PurchaseReturnModal({ purchase, onClose, onReturned }) {
               Already returned
             </div>
             {returns.map((r) => (
-              <div key={r._id} className="list-item-sub">
-                {r.quantity} × {r.item_name} — {formatCurrency(r.refund_amount)}
-                {r.reason ? ` (${r.reason})` : ''}
+              <div key={r._id} className="return-row">
+                <span className="list-item-sub">
+                  {r.quantity} × {r.item_name} — {formatCurrency(r.refund_amount)}
+                  {r.reason ? ` (${r.reason})` : ''}
+                </span>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => undoReturn(r)}
+                  disabled={undoing === r._id}
+                >
+                  {undoing === r._id ? '...' : 'Undo'}
+                </button>
               </div>
             ))}
           </div>
@@ -194,13 +223,17 @@ export default function PurchasesHistory() {
         <div className="empty-state">No purchases recorded yet.</div>
       ) : (
         purchases.map((p) => {
-          const netQuantity = p.net_quantity ?? p.quantity;
           const returnedQuantity = p.returned_quantity || 0;
           return (
             <Link className="list-item" to={`/purchases/${p._id}/edit`} key={p._id}>
               <div className="list-item-main">
+                {/*
+                  Show what was bought, not the figure after returns. Showing the net
+                  made a 20-unit purchase with 3 returned read as "17 piece", which
+                  looked like the entry itself was wrong. The badge below explains it.
+                */}
                 <span className="list-item-title">
-                  {p.item_name} &middot; {netQuantity} {p.unit_type}
+                  {p.item_name} &middot; {p.quantity} {p.unit_type}
                   {p.units_per_pack > 1 && (
                     <span className="list-item-sub" style={{ display: 'inline' }}>
                       {' '}

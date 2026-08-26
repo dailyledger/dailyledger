@@ -4,7 +4,7 @@ const Spoilage = require('../models/Spoilage');
 const Item = require('../models/Item');
 const buildQuery = require('../utils/dateFilter');
 const { BadRequestError } = require('../utils/dateFilter');
-const { round2, round3, isPositiveNumber } = require('../utils/money');
+const { round2, round3, isSaneQuantity, MAX_QUANTITY } = require('../utils/money');
 const { findShortfalls, moveStock } = require('../utils/stock');
 const { runInTransaction } = require('../utils/tx');
 const {
@@ -25,8 +25,8 @@ async function resolveEntry(shop, body) {
   if (!body || typeof body.item_name !== 'string' || !body.item_name.trim()) {
     throw new BadRequestError('Item name is required');
   }
-  if (!isPositiveNumber(body.quantity)) {
-    throw new BadRequestError('Quantity must be greater than 0');
+  if (!isSaneQuantity(body.quantity)) {
+    throw new BadRequestError(`Quantity must be between 0 and ${MAX_QUANTITY}`);
   }
   if (!REASONS.includes(body.reason)) {
     throw new BadRequestError(`Reason must be one of: ${REASONS.join(', ')}`);

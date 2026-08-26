@@ -5,7 +5,15 @@ const Item = require('../models/Item');
 const SalesReturn = require('../models/SalesReturn');
 const buildQuery = require('../utils/dateFilter');
 const { BadRequestError } = require('../utils/dateFilter');
-const { round2, round3, isPositiveNumber, isNonNegativeNumber } = require('../utils/money');
+const {
+  round2,
+  round3,
+  isPositiveNumber,
+  isSaneAmount,
+  isSaneQuantity,
+  MAX_UNIT_AMOUNT,
+  MAX_QUANTITY,
+} = require('../utils/money');
 const { findShortfalls, moveStock } = require('../utils/stock');
 const { runInTransaction } = require('../utils/tx');
 const {
@@ -39,11 +47,15 @@ async function resolveLines(shop, rawItems, previousLines = []) {
     if (!raw || typeof raw.item_name !== 'string' || !raw.item_name.trim()) {
       throw new BadRequestError('Every line needs an item name');
     }
-    if (!isPositiveNumber(raw.quantity)) {
-      throw new BadRequestError(`Quantity for "${raw.item_name}" must be greater than 0`);
+    if (!isSaneQuantity(raw.quantity)) {
+      throw new BadRequestError(
+        `Quantity for "${raw.item_name}" must be between 0 and ${MAX_QUANTITY}`
+      );
     }
-    if (!isNonNegativeNumber(raw.price_per_unit)) {
-      throw new BadRequestError(`Price for "${raw.item_name}" must be 0 or more`);
+    if (!isSaneAmount(raw.price_per_unit)) {
+      throw new BadRequestError(
+        `Price for "${raw.item_name}" must be between 0 and ${MAX_UNIT_AMOUNT}`
+      );
     }
 
     const catalogItem = await Item.findByName(shop, raw.item_name);
@@ -75,6 +87,21 @@ async function resolveLines(shop, rawItems, previousLines = []) {
       line_total: round2(quantity * pricePerUnit),
       bargained: Boolean(raw.bargained),
     });
+  }
+
+  // The same item at the same price twice in one sale is a double-entry mistake,
+  // not an intention — the receipt would show two identical lines. Two lines of
+  // the same item at *different* prices is legitimate (part of it bargained), so
+  // only exact repeats are refused.
+  const seen = new Set();
+  for (const line of lines) {
+    const signature = `${line.item_name.toLowerCase()}|${line.price_per_unit}`;
+    if (seen.has(signature)) {
+      throw new BadRequestError(
+        `"${line.item_name}" is listed twice at the same price — combine it into one line`
+      );
+    }
+    seen.add(signature);
   }
 
   return lines;
@@ -229,7 +256,7 @@ router.get('/:id', async (req, res) => {
 });
 
 /**
- * Blocker 03: editing used to update the sale document and leave stock untouched,
+ * Blocker 03: editing used to update the sale document and stock untouched,
  * so correcting 4kg to 3kg left 4kg deducted forever.
  *
  * The edit restores every original line to stock, then takes the new quantities.
@@ -509,6 +536,76 @@ router.post('/:id/return', async (req, res) => {
     });
 
     res.status(201).json(salesReturn);
+  } catch (err) {
+    sendError(res, err);
+  }
+});
+
+/**
+ * Cancel a return.
+ *
+ * Without this, one mistaken return froze its sale permanently: the sale refused
+ * to be edited or cancelled "until the returns are cancelled", and there was no
+ * way to cancel a return.
+ *
+ * A sales return put goods back on the shelf, so undoing it takes them off again
+ * — which can run the count negative if they have since been sold. That gets the
+ * same warn-and-confirm treatment as any other write.
+ */
+router.delete('/:id/return/:returnId', async (req, res) => {
+  try {
+    const salesReturn = await SalesReturn.findOne({
+      _id: req.params.returnId,
+      sale_id: req.params.id,
+      shop: req.shopId,
+    });
+
+    if (!salesReturn) {
+      return res.status(404).json({ error: 'Return not found' });
+    }
+    if (salesReturn.voided_at) {
+      return res.status(400).json({ error: 'This return is already cancelled' });
+    }
+
+    const allowNegative = req.body?.allow_negative === true;
+    const shortfalls = await findShortfalls(req.shopId, [
+      { item_name: salesReturn.item_name, quantity: salesReturn.quantity },
+    ]);
+
+    if (shortfalls.length > 0 && !allowNegative) {
+      return res.status(409).json({
+        error: 'stock_would_go_negative',
+        message: describeShortfalls(shortfalls),
+        shortfalls,
+        confirmable: true,
+      });
+    }
+
+    const ctx = writeContext(req);
+
+    const voided = await runInTransaction(async (session) => {
+      await moveStock({
+        shop: req.shopId,
+        item_name: salesReturn.item_name,
+        delta: -salesReturn.quantity,
+        reason: 'void',
+        ref_model: 'SalesReturn',
+        ref_id: salesReturn._id,
+        cost_per_unit: salesReturn.cost_per_unit,
+        date: ctx.date,
+        date_key: ctx.date_key,
+        note: 'sales return cancelled',
+        allowNegative: true,
+        session,
+      });
+
+      salesReturn.voided_at = ctx.date;
+      salesReturn.voided_by = ctx.username;
+      await salesReturn.save({ session });
+      return salesReturn;
+    });
+
+    res.json({ cancelled: true, return: voided });
   } catch (err) {
     sendError(res, err);
   }

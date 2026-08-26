@@ -126,29 +126,40 @@ async function main() {
   }
 
   // Give the movement log an opening balance so future changes are traceable.
-  const existingMovements = await StockMovement.countDocuments({ shop: shop._id });
-  if (existingMovements === 0) {
-    const items = await Item.find({ shop: shop._id });
-    const openingKey = dateKeyFor(new Date(), timezone, shop.day_start_hour);
-    const rows = items
-      .filter((item) => item.stock_quantity !== 0)
-      .map((item) => ({
-        shop: shop._id,
-        item_name: item.item_name,
-        delta: item.stock_quantity,
-        reason: 'adjustment',
-        cost_per_unit: round2(item.last_cost_price),
-        note: 'opening balance recorded during migration',
-        date: new Date(),
-        date_key: openingKey,
-      }));
+  //
+  // Checked per item, not per shop: an earlier version gated this on the shop
+  // having zero movements, which meant any item created between two runs never
+  // got an opening balance and showed up as drift in verifyStock.js forever.
+  const items = await Item.find({ shop: shop._id });
+  const openingKey = dateKeyFor(new Date(), timezone, shop.day_start_hour);
+  const rows = [];
 
-    if (rows.length) {
-      await StockMovement.insertMany(rows);
-      console.log(`Stock movements: wrote ${rows.length} opening balance row(s)`);
-    }
+  for (const item of items) {
+    if (item.stock_quantity === 0) continue;
+
+    const seen = await StockMovement.countDocuments({
+      shop: shop._id,
+      item_name: item.item_name,
+    });
+    if (seen > 0) continue;
+
+    rows.push({
+      shop: shop._id,
+      item_name: item.item_name,
+      delta: item.stock_quantity,
+      reason: 'adjustment',
+      cost_per_unit: round2(item.last_cost_price),
+      note: 'opening balance recorded during migration',
+      date: new Date(),
+      date_key: openingKey,
+    });
+  }
+
+  if (rows.length) {
+    await StockMovement.insertMany(rows);
+    console.log(`Stock movements: wrote ${rows.length} opening balance row(s)`);
   } else {
-    console.log(`Stock movements: ${existingMovements} already present, skipping opening balances`);
+    console.log('Stock movements: every item already has history, no opening balances needed');
   }
 
   await Promise.all(Object.values(mongoose.models).map((model) => model.createIndexes()));

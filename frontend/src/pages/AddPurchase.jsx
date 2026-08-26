@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { createPurchase, getPurchase, updatePurchase } from '../api';
+import EntryDateField, { entryDatePayload } from '../components/EntryDateField';
 
 const UNIT_TYPES = ['kg', 'litre', 'piece'];
 
@@ -24,6 +25,7 @@ export default function AddPurchase() {
   const [success, setSuccess] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [loading, setLoading] = useState(isEditMode);
+  const [entryDate, setEntryDate] = useState(null);
 
   useEffect(() => {
     if (!isEditMode) return;
@@ -43,6 +45,7 @@ export default function AddPurchase() {
           payment_mode: purchase.payment_mode,
           notes: purchase.notes || '',
         });
+        setEntryDate(purchase.date ? new Date(purchase.date) : null);
       })
       .catch((err) => {
         if (!cancelled) setError(err.message);
@@ -98,6 +101,7 @@ export default function AddPurchase() {
       selling_price: form.selling_price ? Number(form.selling_price) : undefined,
       payment_mode: form.payment_mode,
       notes: form.notes || undefined,
+      ...entryDatePayload(entryDate),
     };
 
     try {
@@ -144,6 +148,7 @@ export default function AddPurchase() {
             className="form-input"
             value={form.item_name}
             onChange={(e) => update('item_name', e.target.value)}
+            maxLength={60}
             required
           />
         </div>
@@ -241,6 +246,8 @@ export default function AddPurchase() {
             />
           </div>
         )}
+
+        <EntryDateField value={entryDate} onChange={setEntryDate} />
 
         <div className="form-group">
           <label className="form-label">Payment mode</label>
