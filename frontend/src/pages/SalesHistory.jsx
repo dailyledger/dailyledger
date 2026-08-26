@@ -11,6 +11,19 @@ function saleItemsLabel(sale) {
   return `${items[0].item_name} +${items.length - 1} more`;
 }
 
+function returnedSummary(sale) {
+  const byItem = sale.returned_by_item || {};
+  const entries = Object.entries(byItem).filter(([, qty]) => qty > 0);
+  if (entries.length === 0) return null;
+
+  return entries
+    .map(([itemName, qty]) => {
+      const line = (sale.items || []).find((i) => i.item_name === itemName);
+      return `${qty}${line ? line.unit_type : ''}`;
+    })
+    .join(', ');
+}
+
 function ReturnModal({ sale, onClose, onReturned }) {
   const [returns, setReturns] = useState([]);
   const [loadingReturns, setLoadingReturns] = useState(true);
@@ -178,28 +191,38 @@ export default function SalesHistory() {
       ) : sales.length === 0 ? (
         <div className="empty-state">No sales recorded yet.</div>
       ) : (
-        sales.map((sale) => (
-          <Link className="list-item" to={`/sales/${sale._id}/edit`} key={sale._id}>
-            <div className="list-item-main">
-              <span className="list-item-title">
-                {saleItemsLabel(sale)} &middot; {sale.payment_mode}
-              </span>
-              <span className="list-item-sub">{formatDate(sale.date)}</span>
-            </div>
-            <div className="list-item-actions">
-              <button
-                type="button"
-                className="icon-btn"
-                onClick={(e) => openReturnModal(e, sale)}
-                aria-label="Return items from this sale"
-                title="Return"
-              >
-                <Undo2 size={16} />
-              </button>
-              <span className="list-item-amount">{formatCurrency(sale.total_amount)}</span>
-            </div>
-          </Link>
-        ))
+        sales.map((sale) => {
+          const returned = returnedSummary(sale);
+          return (
+            <Link className="list-item" to={`/sales/${sale._id}/edit`} key={sale._id}>
+              <div className="list-item-main">
+                <span className="list-item-title">
+                  {saleItemsLabel(sale)} &middot; {sale.payment_mode}
+                </span>
+                <span className="list-item-sub">{formatDate(sale.date)}</span>
+                {returned && (
+                  <span className="badge badge-unpaid" style={{ marginTop: 4, width: 'fit-content' }}>
+                    Returned: {returned}
+                  </span>
+                )}
+              </div>
+              <div className="list-item-actions">
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={(e) => openReturnModal(e, sale)}
+                  aria-label="Return items from this sale"
+                >
+                  <Undo2 size={14} style={{ marginRight: 4, verticalAlign: -2 }} />
+                  Return
+                </button>
+                <span className="list-item-amount">
+                  {formatCurrency(sale.net_amount ?? sale.total_amount)}
+                </span>
+              </div>
+            </Link>
+          );
+        })
       )}
 
       {returnSale && (

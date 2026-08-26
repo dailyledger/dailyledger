@@ -22,6 +22,10 @@ const purchaseSchema = new mongoose.Schema({
     type: Number,
     required: true,
   },
+  units_per_pack: {
+    type: Number,
+    default: 1,
+  },
   payment_mode: {
     type: String,
     enum: ['cash', 'gpay'],

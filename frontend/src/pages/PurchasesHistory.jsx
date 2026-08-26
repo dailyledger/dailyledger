@@ -162,30 +162,47 @@ export default function PurchasesHistory() {
       ) : purchases.length === 0 ? (
         <div className="empty-state">No purchases recorded yet.</div>
       ) : (
-        purchases.map((p) => (
-          <Link className="list-item" to={`/purchases/${p._id}/edit`} key={p._id}>
-            <div className="list-item-main">
-              <span className="list-item-title">
-                {p.item_name} &middot; {p.quantity} {p.unit_type}
-              </span>
-              <span className="list-item-sub">
-                {p.vendor_name} &middot; {formatDate(p.date)}
-              </span>
-            </div>
-            <div className="list-item-actions">
-              <button
-                type="button"
-                className="icon-btn"
-                onClick={(e) => openReturnModal(e, p)}
-                aria-label="Return to vendor"
-                title="Return"
-              >
-                <Undo2 size={16} />
-              </button>
-              <span className="list-item-amount">{formatCurrency(p.amount)}</span>
-            </div>
-          </Link>
-        ))
+        purchases.map((p) => {
+          const netQuantity = p.net_quantity ?? p.quantity;
+          const returnedQuantity = p.returned_quantity || 0;
+          return (
+            <Link className="list-item" to={`/purchases/${p._id}/edit`} key={p._id}>
+              <div className="list-item-main">
+                <span className="list-item-title">
+                  {p.item_name} &middot; {netQuantity} {p.unit_type}
+                  {p.units_per_pack > 1 && (
+                    <span className="list-item-sub" style={{ display: 'inline' }}>
+                      {' '}
+                      ({p.quantity} × {p.units_per_pack}/pack)
+                    </span>
+                  )}
+                </span>
+                <span className="list-item-sub">
+                  {p.vendor_name} &middot; {formatDate(p.date)}
+                </span>
+                {returnedQuantity > 0 && (
+                  <span className="badge badge-unpaid" style={{ marginTop: 4, width: 'fit-content' }}>
+                    Returned: {returnedQuantity} {p.unit_type}
+                  </span>
+                )}
+              </div>
+              <div className="list-item-actions">
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={(e) => openReturnModal(e, p)}
+                  aria-label="Return to vendor"
+                >
+                  <Undo2 size={14} style={{ marginRight: 4, verticalAlign: -2 }} />
+                  Return
+                </button>
+                <span className="list-item-amount">
+                  {formatCurrency(p.net_amount ?? p.amount)}
+                </span>
+              </div>
+            </Link>
+          );
+        })
       )}
 
       {returnPurchase && (

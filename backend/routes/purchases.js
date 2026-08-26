@@ -5,15 +5,21 @@ const Item = require('../models/Item');
 const PurchaseReturn = require('../models/PurchaseReturn');
 const buildDateFilter = require('../utils/dateFilter');
 
+function packSize(unitsPerPack) {
+  return unitsPerPack && unitsPerPack > 1 ? unitsPerPack : 1;
+}
+
 router.post('/', async (req, res) => {
   try {
-    const { item_name, unit_type, quantity, amount, selling_price } = req.body;
+    const { item_name, unit_type, quantity, amount, selling_price, units_per_pack } = req.body;
 
     if (!selling_price || selling_price <= 0) {
       return res.status(400).json({ error: 'Selling price is required and must be greater than 0' });
     }
 
-    const costPerUnit = quantity ? amount / quantity : 0;
+    const unitsPerPack = packSize(units_per_pack);
+    const totalStockUnits = quantity * unitsPerPack;
+    const costPerUnit = totalStockUnits ? amount / totalStockUnits : 0;
 
     const existingItem = await Item.findOne({ item_name });
 
@@ -21,7 +27,7 @@ router.post('/', async (req, res) => {
       await Item.create({
         item_name,
         unit_type,
-        stock_quantity: quantity,
+        stock_quantity: totalStockUnits,
         last_cost_price: costPerUnit,
         last_selling_price: selling_price || 0,
       });
@@ -34,13 +40,13 @@ router.post('/', async (req, res) => {
       await Item.updateOne(
         { item_name },
         {
-          $inc: { stock_quantity: quantity },
+          $inc: { stock_quantity: totalStockUnits },
           $set: setFields,
         }
       );
     }
 
-    const purchase = new Purchase(req.body);
+    const purchase = new Purchase({ ...req.body, units_per_pack: unitsPerPack });
     await purchase.save();
     res.status(201).json(purchase);
   } catch (err) {
@@ -55,7 +61,30 @@ router.post('/', async (req, res) => {
 router.get('/', async (req, res) => {
   try {
     const purchases = await Purchase.find(buildDateFilter(req)).sort({ date: -1 });
-    res.json(purchases);
+
+    const returns = await PurchaseReturn.find({
+      purchase_id: { $in: purchases.map((p) => p._id) },
+    });
+    const returnsByPurchase = {};
+    for (const r of returns) {
+      const key = r.purchase_id.toString();
+      (returnsByPurchase[key] = returnsByPurchase[key] || []).push(r);
+    }
+
+    const enriched = purchases.map((purchase) => {
+      const purchaseReturns = returnsByPurchase[purchase._id.toString()] || [];
+      const returned_quantity = purchaseReturns.reduce((sum, r) => sum + r.quantity, 0);
+      const returned_amount = purchaseReturns.reduce((sum, r) => sum + r.refund_amount, 0);
+      return {
+        ...purchase.toObject(),
+        returned_quantity,
+        returned_amount,
+        net_quantity: purchase.quantity - returned_quantity,
+        net_amount: purchase.amount - returned_amount,
+      };
+    });
+
+    res.json(enriched);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server error' });
@@ -80,7 +109,8 @@ router.get('/:id', async (req, res) => {
 
 router.put('/:id', async (req, res) => {
   try {
-    const { vendor_name, item_name, quantity, unit_type, amount, payment_mode, notes } = req.body;
+    const { vendor_name, item_name, quantity, unit_type, amount, payment_mode, notes, units_per_pack } =
+      req.body;
 
     const purchase = await Purchase.findById(req.params.id);
     if (!purchase) {
@@ -88,26 +118,31 @@ router.put('/:id', async (req, res) => {
     }
 
     const oldItemName = purchase.item_name;
-    const oldQuantity = purchase.quantity;
+    const oldUnitsPerPack = packSize(purchase.units_per_pack);
+    const oldTotalUnits = purchase.quantity * oldUnitsPerPack;
+
+    const newUnitsPerPack = packSize(units_per_pack);
+    const newTotalUnits = quantity * newUnitsPerPack;
 
     if (item_name === oldItemName) {
       // Stock isn't tracked per-purchase (no lot tracking), so we can't know
       // exactly how much of THIS purchase's stock was consumed. Instead, treat
-      // the edit as applying the quantity delta to the pooled stock, and reject
-      // if that would drive it negative — i.e. more has already been sold,
-      // credited, or spoiled than the new (lower) quantity would allow for.
+      // the edit as applying the (pack-converted) quantity delta to the pooled
+      // stock, and reject if that would drive it negative — i.e. more has
+      // already been sold, credited, or spoiled than the edit would allow for.
       const item = await Item.findOne({ item_name });
       if (!item) {
         return res.status(400).json({ error: `Item "${item_name}" not found in catalog` });
       }
 
-      const delta = quantity - oldQuantity;
+      const delta = newTotalUnits - oldTotalUnits;
       const newStock = item.stock_quantity + delta;
 
       if (newStock < 0) {
-        const minQuantity = Math.max(0, oldQuantity - item.stock_quantity);
+        const minStockUnits = Math.max(0, oldTotalUnits - item.stock_quantity);
+        const minQuantity = Math.ceil(minStockUnits / newUnitsPerPack);
         return res.status(400).json({
-          error: `Cannot reduce quantity to ${quantity} for "${item_name}": ${oldQuantity - item.stock_quantity} unit(s) originally added by this purchase have already been sold, credited, or spoiled. Minimum allowed quantity is ${minQuantity}.`,
+          error: `Cannot reduce this purchase to ${quantity}: ${oldTotalUnits - item.stock_quantity} stock unit(s) originally added by this purchase have already been sold, credited, or spoiled. Minimum allowed quantity is ${minQuantity}.`,
         });
       }
 
@@ -116,19 +151,19 @@ router.put('/:id', async (req, res) => {
       // Item was changed: give back the old item's contribution, then add to the new item.
       const oldItem = await Item.findOne({ item_name: oldItemName });
       if (oldItem) {
-        if (oldItem.stock_quantity - oldQuantity < 0) {
+        if (oldItem.stock_quantity - oldTotalUnits < 0) {
           return res.status(400).json({
-            error: `Cannot move this purchase away from "${oldItemName}": removing its ${oldQuantity} unit(s) would drive "${oldItemName}" stock negative (some have already been sold, credited, or spoiled).`,
+            error: `Cannot move this purchase away from "${oldItemName}": removing its ${oldTotalUnits} stock unit(s) would drive "${oldItemName}" stock negative (some have already been sold, credited, or spoiled).`,
           });
         }
-        await Item.updateOne({ item_name: oldItemName }, { $inc: { stock_quantity: -oldQuantity } });
+        await Item.updateOne({ item_name: oldItemName }, { $inc: { stock_quantity: -oldTotalUnits } });
       }
 
       const newItem = await Item.findOne({ item_name });
       if (!newItem) {
         return res.status(400).json({ error: `Item "${item_name}" not found in catalog` });
       }
-      await Item.updateOne({ item_name }, { $inc: { stock_quantity: quantity } });
+      await Item.updateOne({ item_name }, { $inc: { stock_quantity: newTotalUnits } });
     }
 
     purchase.vendor_name = vendor_name;
@@ -136,6 +171,7 @@ router.put('/:id', async (req, res) => {
     purchase.quantity = quantity;
     purchase.unit_type = unit_type;
     purchase.amount = amount;
+    purchase.units_per_pack = newUnitsPerPack;
     purchase.payment_mode = payment_mode;
     purchase.notes = notes;
 
@@ -189,14 +225,17 @@ router.post('/:id/return', async (req, res) => {
       });
     }
 
+    const unitsPerPack = packSize(purchase.units_per_pack);
+    const stockImpact = quantity * unitsPerPack;
+
     const item = await Item.findOne({ item_name: purchase.item_name });
-    if (!item || quantity > item.stock_quantity) {
+    if (!item || stockImpact > item.stock_quantity) {
       return res.status(400).json({
-        error: `Cannot return ${quantity} of "${purchase.item_name}": only ${item ? item.stock_quantity : 0} unit(s) currently in stock (some may have already been sold, credited, or spoiled).`,
+        error: `Cannot return ${quantity} of "${purchase.item_name}": that represents ${stockImpact} stock unit(s), but only ${item ? item.stock_quantity : 0} are currently in stock (some may have already been sold, credited, or spoiled).`,
       });
     }
 
-    await Item.updateOne({ item_name: purchase.item_name }, { $inc: { stock_quantity: -quantity } });
+    await Item.updateOne({ item_name: purchase.item_name }, { $inc: { stock_quantity: -stockImpact } });
 
     const costPerUnit = purchase.quantity ? purchase.amount / purchase.quantity : 0;
     const purchaseReturn = new PurchaseReturn({
