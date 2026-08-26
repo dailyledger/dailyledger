@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const Purchase = require('../models/Purchase');
 const Item = require('../models/Item');
+const PurchaseReturn = require('../models/PurchaseReturn');
 const buildDateFilter = require('../utils/dateFilter');
 
 router.post('/', async (req, res) => {
@@ -140,6 +141,74 @@ router.put('/:id', async (req, res) => {
 
     await purchase.save();
     res.json(purchase);
+  } catch (err) {
+    console.error(err);
+    if (err.name === 'CastError') {
+      return res.status(400).json({ error: 'Invalid purchase id' });
+    }
+    if (err.name === 'ValidationError') {
+      return res.status(400).json({ error: err.message });
+    }
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+router.get('/:id/returns', async (req, res) => {
+  try {
+    const returns = await PurchaseReturn.find({ purchase_id: req.params.id }).sort({ date: -1 });
+    res.json(returns);
+  } catch (err) {
+    console.error(err);
+    if (err.name === 'CastError') {
+      return res.status(400).json({ error: 'Invalid purchase id' });
+    }
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+router.post('/:id/return', async (req, res) => {
+  try {
+    const { quantity, reason } = req.body;
+
+    if (!quantity || quantity <= 0) {
+      return res.status(400).json({ error: 'Return quantity must be greater than 0' });
+    }
+
+    const purchase = await Purchase.findById(req.params.id);
+    if (!purchase) {
+      return res.status(404).json({ error: 'Purchase not found' });
+    }
+
+    const existingReturns = await PurchaseReturn.find({ purchase_id: purchase._id });
+    const alreadyReturned = existingReturns.reduce((sum, r) => sum + r.quantity, 0);
+    const returnable = purchase.quantity - alreadyReturned;
+
+    if (quantity > returnable) {
+      return res.status(400).json({
+        error: `Cannot return ${quantity} of "${purchase.item_name}": only ${returnable} unit(s) remain returnable (${purchase.quantity} purchased, ${alreadyReturned} already returned).`,
+      });
+    }
+
+    const item = await Item.findOne({ item_name: purchase.item_name });
+    if (!item || quantity > item.stock_quantity) {
+      return res.status(400).json({
+        error: `Cannot return ${quantity} of "${purchase.item_name}": only ${item ? item.stock_quantity : 0} unit(s) currently in stock (some may have already been sold, credited, or spoiled).`,
+      });
+    }
+
+    await Item.updateOne({ item_name: purchase.item_name }, { $inc: { stock_quantity: -quantity } });
+
+    const costPerUnit = purchase.quantity ? purchase.amount / purchase.quantity : 0;
+    const purchaseReturn = new PurchaseReturn({
+      purchase_id: purchase._id,
+      item_name: purchase.item_name,
+      quantity,
+      reason: reason || undefined,
+      refund_amount: quantity * costPerUnit,
+    });
+    await purchaseReturn.save();
+
+    res.status(201).json(purchaseReturn);
   } catch (err) {
     console.error(err);
     if (err.name === 'CastError') {

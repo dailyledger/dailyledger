@@ -24,6 +24,7 @@ export default function AddSpoilage() {
   const [success, setSuccess] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [loading, setLoading] = useState(isEditMode);
+  const [valueTouched, setValueTouched] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -74,13 +75,40 @@ export default function AddSpoilage() {
 
   const update = (field, value) => setForm((prev) => ({ ...prev, [field]: value }));
 
+  const getCostFor = (itemName) => {
+    const match = items.find((it) => it.item_name === itemName);
+    return match ? match.last_cost_price : null;
+  };
+
+  const autoEstimatedValue = (itemName, quantity) => {
+    const cost = getCostFor(itemName);
+    if (cost === null || !quantity) return '';
+    return Number((cost * Number(quantity)).toFixed(2));
+  };
+
   const handleItemNameChange = (name) => {
     const match = items.find((it) => it.item_name === name);
     setForm((prev) => ({
       ...prev,
       item_name: name,
       unit_type: match ? match.unit_type : prev.unit_type,
+      estimated_value: valueTouched ? prev.estimated_value : autoEstimatedValue(name, prev.quantity),
     }));
+  };
+
+  const handleQuantityChange = (value) => {
+    setForm((prev) => ({
+      ...prev,
+      quantity: value,
+      estimated_value: valueTouched
+        ? prev.estimated_value
+        : autoEstimatedValue(prev.item_name, value),
+    }));
+  };
+
+  const handleEstimatedValueChange = (value) => {
+    setValueTouched(true);
+    update('estimated_value', value);
   };
 
   const getStockFor = (itemName) => {
@@ -170,7 +198,7 @@ export default function AddSpoilage() {
               min="0"
               step="any"
               value={form.quantity}
-              onChange={(e) => update('quantity', e.target.value)}
+              onChange={(e) => handleQuantityChange(e.target.value)}
               required
             />
           </div>
@@ -198,7 +226,7 @@ export default function AddSpoilage() {
             min="0"
             step="any"
             value={form.estimated_value}
-            onChange={(e) => update('estimated_value', e.target.value)}
+            onChange={(e) => handleEstimatedValueChange(e.target.value)}
             required
           />
         </div>

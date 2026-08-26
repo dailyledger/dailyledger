@@ -113,9 +113,13 @@ export default function Inventory() {
               </thead>
               <tbody>
                 {sortedRows.map((row) => {
-                  const lowStock = row.stock_quantity <= LOW_STOCK_THRESHOLD;
+                  const outOfStock = row.stock_quantity === 0;
+                  const lowStock = !outOfStock && row.stock_quantity <= LOW_STOCK_THRESHOLD;
                   return (
-                    <tr key={row._id} className={lowStock ? 'row-low-stock' : ''}>
+                    <tr
+                      key={row._id}
+                      className={outOfStock ? 'row-out-of-stock' : lowStock ? 'row-low-stock' : ''}
+                    >
                       <td>{row.item_name}</td>
                       <td>{row.unit_type}</td>
                       <td className="num">{row.stock_quantity}</td>
@@ -123,6 +127,7 @@ export default function Inventory() {
                       <td className="num">{formatCurrency(row.last_selling_price)}</td>
                       <td className="num">{formatCurrency(row.stock_value)}</td>
                       <td>
+                        {outOfStock && <span className="badge badge-out-of-stock">No Stock</span>}
                         {lowStock && <span className="badge badge-unpaid">Low Stock</span>}
                       </td>
                     </tr>

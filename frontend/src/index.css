@@ -336,24 +336,26 @@ button, input, select, textarea {
 }
 
 .mode-toggle {
-  display: flex;
-  gap: 10px;
+  display: inline-flex;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  overflow: hidden;
 }
 
 .mode-toggle button {
-  flex: 1;
-  padding: 12px;
-  border-radius: 10px;
-  border: 1px solid var(--color-border);
+  flex: none;
+  padding: 7px 18px;
+  border: none;
   background: var(--color-surface);
   font-weight: 600;
+  font-size: 0.85rem;
   cursor: pointer;
+  color: var(--color-muted);
 }
 
 .mode-toggle button.active {
   background: var(--brand-color);
   color: #fff;
-  border-color: var(--brand-color);
 }
 
 .line-item {
@@ -498,6 +500,11 @@ button, input, select, textarea {
   color: var(--color-danger);
 }
 
+.badge-out-of-stock {
+  background: var(--color-danger);
+  color: #fff;
+}
+
 .badge-partially_paid {
   background: #fff3cd;
   color: var(--color-warning);
@@ -587,6 +594,16 @@ button, input, select, textarea {
   }
 }
 
+.filter-bar-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
 .table-scroll {
   overflow-x: auto;
   background: var(--color-surface);
@@ -659,6 +676,14 @@ button, input, select, textarea {
 
 .report-table tbody tr.row-low-stock:hover {
   background: #fbe4e4;
+}
+
+.report-table tbody tr.row-out-of-stock {
+  background: #fbdada;
+}
+
+.report-table tbody tr.row-out-of-stock:hover {
+  background: #f8c6c6;
 }
 
 .empty-state {
@@ -784,6 +809,12 @@ button, input, select, textarea {
 .react-datepicker__day--today {
   font-weight: 700;
   color: var(--brand-color);
+}
+
+/* Today's date, when also selected, must stay white-on-blue (not blue-on-blue). */
+.react-datepicker__day--today.react-datepicker__day--selected,
+.react-datepicker__day--today.react-datepicker__day--keyboard-selected {
+  color: #fff;
 }
 
 .react-datepicker__triangle {

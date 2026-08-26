@@ -59,6 +59,9 @@ export const createSale = (payload) =>
   request('/sales', { method: 'POST', body: JSON.stringify(payload) });
 export const updateSale = (id, payload) =>
   request(`/sales/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
+export const getSaleReturns = (id) => request(`/sales/${id}/returns`);
+export const createSaleReturn = (id, payload) =>
+  request(`/sales/${id}/return`, { method: 'POST', body: JSON.stringify(payload) });
 
 export const getPurchases = (range) => request(withDateRange('/purchases', range));
 export const getPurchase = (id) => request(`/purchases/${id}`);
@@ -66,6 +69,9 @@ export const createPurchase = (payload) =>
   request('/purchases', { method: 'POST', body: JSON.stringify(payload) });
 export const updatePurchase = (id, payload) =>
   request(`/purchases/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
+export const getPurchaseReturns = (id) => request(`/purchases/${id}/returns`);
+export const createPurchaseReturn = (id, payload) =>
+  request(`/purchases/${id}/return`, { method: 'POST', body: JSON.stringify(payload) });
 
 export const getCredits = (range) => request(withDateRange('/credits', range));
 export const getCredit = (id) => request(`/credits/${id}`);
