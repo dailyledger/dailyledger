@@ -4,6 +4,13 @@ import { Pencil } from 'lucide-react';
 import { getCredits, payCredit } from '../api';
 import { formatCurrency, formatDate } from '../format';
 
+function creditItemsLabel(credit) {
+  const items = credit.items || [];
+  if (items.length === 0) return 'No items';
+  if (items.length === 1) return items[0].item_name;
+  return `${items[0].item_name} +${items.length - 1} more`;
+}
+
 export default function CreditLedger() {
   const navigate = useNavigate();
   const [credits, setCredits] = useState([]);
@@ -102,8 +109,7 @@ export default function CreditLedger() {
                 {credit.phone ? ` · ${credit.phone}` : ''}
               </span>
               <span className="list-item-sub">
-                {credit.items?.length || 0} item{credit.items?.length === 1 ? '' : 's'} &middot;{' '}
-                {formatDate(credit.date)}
+                {creditItemsLabel(credit)} &middot; {formatDate(credit.date)}
               </span>
             </div>
             <div className="list-item-actions">
@@ -133,6 +139,15 @@ export default function CreditLedger() {
             <p style={{ color: 'var(--color-muted)', marginTop: -8 }}>
               Outstanding: {formatCurrency(selected.total_amount - selected.amount_paid)}
             </p>
+
+            <div className="card" style={{ marginBottom: 16 }}>
+              {(selected.items || []).map((item, i) => (
+                <div key={i} className="list-item-sub">
+                  {item.quantity} × {item.item_name} @ {formatCurrency(item.price_per_unit)} ={' '}
+                  {formatCurrency(item.line_total)}
+                </div>
+              ))}
+            </div>
 
             {payError && <div className="error-banner">{payError}</div>}
 

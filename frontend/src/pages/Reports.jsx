@@ -193,6 +193,7 @@ export default function Reports() {
   const [rows, setRows] = useState(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [filtersCollapsed, setFiltersCollapsed] = useState(false);
 
   const config = REPORT_CONFIG[tab];
 
@@ -200,6 +201,7 @@ export default function Reports() {
     setTab(key);
     setRows(null);
     setError('');
+    setFiltersCollapsed(false);
   };
 
   const handleGenerate = async () => {
@@ -210,11 +212,17 @@ export default function Reports() {
     try {
       const records = await config.fetch({ from: toISODate(fromDate), to: toISODate(toDate) });
       setRows(config.flatten(records));
+      setFiltersCollapsed(true);
     } catch (err) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleEditDates = () => {
+    setFiltersCollapsed(false);
+    setRows(null);
   };
 
   const total = rows ? rows.reduce((sum, row) => sum + (Number(row[config.amountField]) || 0), 0) : 0;
@@ -241,24 +249,36 @@ export default function Reports() {
       </div>
 
       <div className="filter-bar">
-        <div className="filter-bar-fields">
-          <DateField
-            label="From Date"
-            selected={fromDate}
-            onChange={setFromDate}
-            placeholder="Select start date"
-            maxDate={toDate || undefined}
-          />
-          <DateField
-            label="To Date"
-            selected={toDate}
-            onChange={setToDate}
-            placeholder="Select end date"
-          />
-          <button className="btn btn-primary" onClick={handleGenerate} disabled={loading}>
-            {loading ? 'Generating...' : 'Generate'}
-          </button>
-        </div>
+        {filtersCollapsed ? (
+          <div className="filter-bar-summary">
+            <span>
+              {fromDate ? toDateOnly(fromDate) : 'Any date'} &ndash;{' '}
+              {toDate ? toDateOnly(toDate) : 'Any date'}
+            </span>
+            <button type="button" className="btn btn-secondary btn-sm" onClick={handleEditDates}>
+              Edit Dates
+            </button>
+          </div>
+        ) : (
+          <div className="filter-bar-fields">
+            <DateField
+              label="From Date"
+              selected={fromDate}
+              onChange={setFromDate}
+              placeholder="Select start date"
+              maxDate={toDate || undefined}
+            />
+            <DateField
+              label="To Date"
+              selected={toDate}
+              onChange={setToDate}
+              placeholder="Select end date"
+            />
+            <button className="btn btn-primary" onClick={handleGenerate} disabled={loading}>
+              {loading ? 'Generating...' : 'Generate'}
+            </button>
+          </div>
+        )}
       </div>
 
       {error && <div className="error-banner">{error}</div>}

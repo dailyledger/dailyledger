@@ -155,34 +155,36 @@ export default function AddPurchase() {
           </div>
         </div>
 
-        <div className="form-group">
-          <label className="form-label">Amount</label>
-          <input
-            className="form-input"
-            type="number"
-            min="0"
-            step="any"
-            value={form.amount}
-            onChange={(e) => update('amount', e.target.value)}
-            required
-          />
-        </div>
-
-        {!isEditMode && (
+        <div className="line-item-row">
           <div className="form-group">
-            <label className="form-label">Selling price</label>
+            <label className="form-label">Amount</label>
             <input
               className="form-input"
               type="number"
-              min="0.01"
+              min="0"
               step="any"
-              value={form.selling_price}
-              onChange={(e) => update('selling_price', e.target.value)}
-              placeholder="Sets the initial price to suggest at next sale"
+              value={form.amount}
+              onChange={(e) => update('amount', e.target.value)}
               required
             />
           </div>
-        )}
+
+          {!isEditMode && (
+            <div className="form-group">
+              <label className="form-label">Selling price</label>
+              <input
+                className="form-input"
+                type="number"
+                min="0.01"
+                step="any"
+                value={form.selling_price}
+                onChange={(e) => update('selling_price', e.target.value)}
+                placeholder="Sets the initial price to suggest at next sale"
+                required
+              />
+            </div>
+          )}
+        </div>
 
         <div className="form-group">
           <label className="form-label">Payment mode</label>

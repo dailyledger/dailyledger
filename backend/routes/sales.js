@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const Sale = require('../models/Sale');
 const Item = require('../models/Item');
+const SalesReturn = require('../models/SalesReturn');
 const buildDateFilter = require('../utils/dateFilter');
 
 async function validateItemsAgainstCatalog(items) {
@@ -116,6 +117,71 @@ router.put('/:id', async (req, res) => {
 
     await sale.save();
     res.json(sale);
+  } catch (err) {
+    console.error(err);
+    if (err.name === 'CastError') {
+      return res.status(400).json({ error: 'Invalid sale id' });
+    }
+    if (err.name === 'ValidationError') {
+      return res.status(400).json({ error: err.message });
+    }
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+router.get('/:id/returns', async (req, res) => {
+  try {
+    const returns = await SalesReturn.find({ sale_id: req.params.id }).sort({ date: -1 });
+    res.json(returns);
+  } catch (err) {
+    console.error(err);
+    if (err.name === 'CastError') {
+      return res.status(400).json({ error: 'Invalid sale id' });
+    }
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+router.post('/:id/return', async (req, res) => {
+  try {
+    const { item_name, quantity, reason } = req.body;
+
+    if (!quantity || quantity <= 0) {
+      return res.status(400).json({ error: 'Return quantity must be greater than 0' });
+    }
+
+    const sale = await Sale.findById(req.params.id);
+    if (!sale) {
+      return res.status(404).json({ error: 'Sale not found' });
+    }
+
+    const lineItem = sale.items.find((item) => item.item_name === item_name);
+    if (!lineItem) {
+      return res.status(400).json({ error: `"${item_name}" was not part of this sale` });
+    }
+
+    const existingReturns = await SalesReturn.find({ sale_id: sale._id, item_name });
+    const alreadyReturned = existingReturns.reduce((sum, r) => sum + r.quantity, 0);
+    const returnable = lineItem.quantity - alreadyReturned;
+
+    if (quantity > returnable) {
+      return res.status(400).json({
+        error: `Cannot return ${quantity} of "${item_name}": only ${returnable} unit(s) remain returnable (${lineItem.quantity} sold, ${alreadyReturned} already returned).`,
+      });
+    }
+
+    await Item.updateOne({ item_name }, { $inc: { stock_quantity: quantity } });
+
+    const salesReturn = new SalesReturn({
+      sale_id: sale._id,
+      item_name,
+      quantity,
+      reason: reason || undefined,
+      refund_amount: quantity * lineItem.price_per_unit,
+    });
+    await salesReturn.save();
+
+    res.status(201).json(salesReturn);
   } catch (err) {
     console.error(err);
     if (err.name === 'CastError') {
