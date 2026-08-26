@@ -15,6 +15,7 @@ export default function AddPurchase() {
     quantity: '',
     unit_type: 'piece',
     amount: '',
+    units_per_pack: '',
     selling_price: '',
     payment_mode: 'cash',
     notes: '',
@@ -37,6 +38,7 @@ export default function AddPurchase() {
           quantity: purchase.quantity,
           unit_type: purchase.unit_type,
           amount: purchase.amount,
+          units_per_pack: purchase.units_per_pack > 1 ? purchase.units_per_pack : '',
           payment_mode: purchase.payment_mode,
           notes: purchase.notes || '',
         });
@@ -73,6 +75,7 @@ export default function AddPurchase() {
       quantity: Number(form.quantity),
       unit_type: form.unit_type,
       amount: Number(form.amount),
+      units_per_pack: form.units_per_pack ? Number(form.units_per_pack) : 1,
       selling_price: form.selling_price ? Number(form.selling_price) : undefined,
       payment_mode: form.payment_mode,
       notes: form.notes || undefined,
@@ -153,6 +156,26 @@ export default function AddPurchase() {
               ))}
             </select>
           </div>
+        </div>
+
+        <div className="form-group">
+          <label className="form-label">
+            Units per pack (optional)
+            {form.units_per_pack > 1 && form.quantity && (
+              <span className="stock-hint">
+                = {Number(form.quantity) * Number(form.units_per_pack)} {form.unit_type} total
+              </span>
+            )}
+          </label>
+          <input
+            className="form-input"
+            type="number"
+            min="1"
+            step="1"
+            value={form.units_per_pack}
+            onChange={(e) => update('units_per_pack', e.target.value)}
+            placeholder="e.g. 50 — for bulk packs sold individually (leave blank if not applicable)"
+          />
         </div>
 
         <div className="line-item-row">

@@ -73,7 +73,32 @@ router.post('/', async (req, res) => {
 router.get('/', async (req, res) => {
   try {
     const sales = await Sale.find(buildDateFilter(req)).sort({ date: -1 });
-    res.json(sales);
+
+    const returns = await SalesReturn.find({ sale_id: { $in: sales.map((s) => s._id) } });
+    const returnsBySale = {};
+    for (const r of returns) {
+      const key = r.sale_id.toString();
+      (returnsBySale[key] = returnsBySale[key] || []).push(r);
+    }
+
+    const enriched = sales.map((sale) => {
+      const saleReturns = returnsBySale[sale._id.toString()] || [];
+      const returned_quantity = saleReturns.reduce((sum, r) => sum + r.quantity, 0);
+      const returned_amount = saleReturns.reduce((sum, r) => sum + r.refund_amount, 0);
+      const returnedByItem = {};
+      for (const r of saleReturns) {
+        returnedByItem[r.item_name] = (returnedByItem[r.item_name] || 0) + r.quantity;
+      }
+      return {
+        ...sale.toObject(),
+        returned_quantity,
+        returned_amount,
+        returned_by_item: returnedByItem,
+        net_amount: sale.total_amount - returned_amount,
+      };
+    });
+
+    res.json(enriched);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server error' });
