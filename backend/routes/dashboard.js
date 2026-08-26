@@ -5,6 +5,7 @@ const Purchase = require('../models/Purchase');
 const Spoilage = require('../models/Spoilage');
 const Credit = require('../models/Credit');
 const SalesReturn = require('../models/SalesReturn');
+const PurchaseReturn = require('../models/PurchaseReturn');
 const { round2 } = require('../utils/money');
 const { todayKey, keysBack, isDateKey } = require('../utils/shopDay');
 const { sendError } = require('../utils/ledger');
@@ -37,8 +38,15 @@ router.get('/summary', async (req, res) => {
     const keys = periodKeys(req);
     const match = { shop: req.shopId, date_key: { $in: keys }, voided_at: null };
 
-    const [salesAgg, purchaseAgg, spoilageAgg, returnAgg, creditAgg, outstandingAgg] =
-      await Promise.all([
+    const [
+      salesAgg,
+      purchaseAgg,
+      purchaseReturnAgg,
+      spoilageAgg,
+      returnAgg,
+      creditAgg,
+      outstandingAgg,
+    ] = await Promise.all([
         // Blocker 02: revenue and cost of goods sold come from the same documents,
         // using the cost frozen on each line at the time of sale.
         Sale.aggregate([
@@ -55,6 +63,12 @@ router.get('/summary', async (req, res) => {
         Purchase.aggregate([
           { $match: match },
           { $group: { _id: null, total: { $sum: '$amount' } } },
+        ]),
+        // Stock sent back to the vendor was never really bought, so it must come
+        // off the purchase total.
+        PurchaseReturn.aggregate([
+          { $match: match },
+          { $group: { _id: null, refunds: { $sum: '$refund_amount' } } },
         ]),
         Spoilage.aggregate([
           { $match: match },
@@ -104,7 +118,8 @@ router.get('/summary', async (req, res) => {
     const credit_cogs = round2(first(creditAgg, 'cogs'));
     const refunds = round2(first(returnAgg, 'refunds'));
     const refund_cost = round2(first(returnAgg, 'cost'));
-    const total_purchases = round2(first(purchaseAgg, 'total'));
+    const purchase_refunds = round2(first(purchaseReturnAgg, 'refunds'));
+    const total_purchases = round2(first(purchaseAgg, 'total') - purchase_refunds);
     const total_spoilage = round2(first(spoilageAgg, 'total'));
 
     const revenue = round2(sales_revenue + credit_revenue - refunds);
