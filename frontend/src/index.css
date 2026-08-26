@@ -979,3 +979,143 @@ button, input, select, textarea {
   color: var(--color-warning);
   white-space: nowrap;
 }
+
+/* ==========================================================================
+   Small-screen fixes
+   The layout is mobile-first, but a few rows were sized for desktop and got
+   crushed on a ~390px phone. Each block below names what was overflowing.
+   ========================================================================== */
+
+/* Mobile top bar. Holds logout so the tab bar only carries destinations. */
+.app-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.app-topbar-title {
+  font-weight: 700;
+  font-size: 1rem;
+  color: var(--brand-color);
+}
+
+.app-topbar-logout {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: none;
+  border-radius: 9px;
+  background: none;
+  color: var(--color-danger);
+  cursor: pointer;
+}
+
+.app-topbar-logout:active {
+  background: rgba(220, 38, 38, 0.1);
+}
+
+/* Logout lives in the top bar on phones, in the nav from 768px up. */
+.nav-logout {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .app-topbar {
+    display: none;
+  }
+
+  .nav-logout {
+    display: flex;
+  }
+}
+
+/* Seven tabs across a phone: trim the label so "Purchase" and "Inventory" fit
+   instead of wrapping or clipping. */
+@media (max-width: 767px) {
+  .nav-link {
+    font-size: 0.63rem;
+    gap: 3px;
+    padding: 0 2px;
+    min-width: 0;
+  }
+
+  .nav-link span {
+    line-height: 1.1;
+    text-align: center;
+  }
+
+  .nav-link .nav-icon {
+    width: 20px;
+    height: 20px;
+  }
+}
+
+/* History rows carry a title plus Return, Cancel and the amount. Those actions
+   are flex-shrink: 0, so on a phone they squeezed the item name down to nothing.
+   Below 560px the actions drop onto their own line. */
+@media (max-width: 559px) {
+  .list-item {
+    flex-wrap: wrap;
+    row-gap: 10px;
+  }
+
+  .list-item-main {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+
+  .list-item-title {
+    overflow-wrap: anywhere;
+  }
+
+  .list-item-actions {
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 8px;
+  }
+}
+
+/* Form rows put two or three inputs side by side with flex: 1 and no wrap,
+   which left about 110px each. Let them wrap once they'd go below 130px. */
+@media (max-width: 559px) {
+  .line-item-row {
+    flex-wrap: wrap;
+  }
+
+  .line-item-row > * {
+    flex: 1 1 130px;
+    min-width: 130px;
+  }
+}
+
+/* Dashboard tiles stay two-across (one column made the page five screens tall),
+   but the amounts shrink so figures like ₹4,405 stop wrapping. */
+@media (max-width: 479px) {
+  .stat-tile {
+    padding: 12px;
+  }
+
+  .stat-label {
+    font-size: 0.72rem;
+  }
+
+  .stat-value {
+    font-size: 1.05rem;
+    overflow-wrap: anywhere;
+  }
+}
+
+/* Below ~340px there is no room for two columns at all. */
+@media (max-width: 339px) {
+  .grid-2 {
+    grid-template-columns: 1fr;
+  }
+}

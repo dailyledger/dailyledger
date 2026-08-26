@@ -193,7 +193,7 @@ export default function AddPurchase() {
             step="1"
             value={form.units_per_pack}
             onChange={(e) => update('units_per_pack', e.target.value)}
-            placeholder="e.g. 50 — for bulk packs sold individually (leave blank if not applicable)"
+            placeholder="e.g. 50 for a sack — blank if not a pack"
           />
         </div>
 
@@ -236,7 +236,7 @@ export default function AddPurchase() {
               step="any"
               value={form.selling_price}
               onChange={(e) => update('selling_price', e.target.value)}
-              placeholder="Sets the initial price to suggest at next sale"
+              placeholder="Price to suggest at next sale"
               required
             />
           </div>
