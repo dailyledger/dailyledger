@@ -12,6 +12,7 @@ import {
 import { adminGetReport, adminGetVoided } from '../../api';
 import { formatCurrency, formatDate } from '../../format';
 import MultiSelect from './MultiSelect';
+import AdminDateField from './AdminDateField';
 import { useCustomerOptions, isoToday } from './adminQuery';
 import { exportExcel, exportPdf } from './exportReport';
 
@@ -272,25 +273,24 @@ export default function AdminReports() {
             <label className="a-label">
               Start date <span className="req">*</span>
             </label>
-            <input
-              type="date"
-              className={`a-input${startError ? ' invalid' : ''}`}
+            <AdminDateField
               value={form.from}
               max={form.to || undefined}
-              onChange={(e) => {
-                set({ from: e.target.value });
+              invalid={startError}
+              placeholder="Select start date"
+              onChange={(from) => {
+                set({ from });
                 setStartError(false);
               }}
             />
           </div>
           <div className="a-field">
             <label className="a-label">End date</label>
-            <input
-              type="date"
-              className="a-input"
+            <AdminDateField
               value={form.to}
               min={form.from || undefined}
-              onChange={(e) => set({ to: e.target.value })}
+              placeholder="Select end date"
+              onChange={(to) => set({ to })}
             />
           </div>
 

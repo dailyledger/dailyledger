@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Ban } from 'lucide-react';
+import { Ban, Plus } from 'lucide-react';
 import { getSpoilageEntries, cancelSpoilage } from '../api';
 import { formatCurrency, formatDate } from '../format';
 import ConfirmDialog from '../components/ConfirmDialog';
@@ -52,8 +52,9 @@ export default function SpoilageHistory() {
         <h1 className="page-title" style={{ margin: 0 }}>
           Spoilage
         </h1>
-        <Link className="btn btn-primary btn-sm" to="/spoilage/add">
-          + Add Spoilage
+        <Link className="btn-add" to="/spoilage/add">
+          <Plus size={18} strokeWidth={2.5} />
+          Add Spoilage
         </Link>
       </div>
 

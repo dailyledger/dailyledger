@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Undo2, Ban } from 'lucide-react';
+import { Undo2, Ban, Plus } from 'lucide-react';
 import {
   getSales,
   getSaleReturns,
@@ -267,8 +267,9 @@ export default function SalesHistory() {
         <h1 className="page-title" style={{ margin: 0 }}>
           Sales
         </h1>
-        <Link className="btn btn-primary btn-sm" to="/sales/add">
-          + Add Sale
+        <Link className="btn-add" to="/sales/add">
+          <Plus size={18} strokeWidth={2.5} />
+          Add Sale
         </Link>
       </div>
 

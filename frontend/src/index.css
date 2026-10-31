@@ -1168,3 +1168,32 @@ button, input, select, textarea {
   opacity: 0.6;
   cursor: not-allowed;
 }
+
+/* Compact "Add ..." button used in list page headers. (.btn-primary forces
+   width: 100%, which made the old small button stretch wide and short.) */
+.btn-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  height: 42px;
+  padding: 0 18px 0 14px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--brand-color), var(--brand-color-dark));
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.9rem;
+  text-decoration: none;
+  white-space: nowrap;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.28);
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.btn-add:hover {
+  box-shadow: 0 6px 16px rgba(37, 99, 235, 0.36);
+}
+
+.btn-add:active {
+  transform: scale(0.97);
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.3);
+}

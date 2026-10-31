@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Pencil, Ban } from 'lucide-react';
+import { Pencil, Ban, Plus } from 'lucide-react';
 import { getCredits, payCredit, cancelCredit } from '../api';
 import { formatCurrency, formatDate } from '../format';
 import ConfirmDialog from '../components/ConfirmDialog';
@@ -98,8 +98,9 @@ export default function CreditLedger() {
         <h1 className="page-title" style={{ margin: 0 }}>
           Credit Ledger
         </h1>
-        <Link className="btn btn-primary btn-sm" to="/credits/add">
-          + Add Credit
+        <Link className="btn-add" to="/credits/add">
+          <Plus size={18} strokeWidth={2.5} />
+          Add Credit
         </Link>
       </div>
 
