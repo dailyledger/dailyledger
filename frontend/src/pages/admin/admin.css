@@ -978,3 +978,189 @@ html.adm body {
     grid-template-columns: repeat(2, 1fr);
   }
 }
+
+/* ---------- Date picker (react-datepicker, dark) ---------- */
+.a-date {
+  position: relative;
+}
+
+.a-date-wrap,
+.a-date .react-datepicker__input-container {
+  display: block;
+  width: 100%;
+}
+
+.a-date .a-input {
+  padding-left: 38px;
+  padding-right: 34px;
+}
+
+.a-date.invalid .a-input {
+  border-color: var(--a-danger);
+}
+
+.a-date-icon {
+  position: absolute;
+  left: 12px;
+  top: 12px;
+  z-index: 1;
+  color: var(--a-muted);
+  pointer-events: none;
+}
+
+.a-date .react-datepicker__close-icon {
+  padding-right: 10px;
+}
+
+.a-date .react-datepicker__close-icon::after {
+  background: var(--a-surface-2);
+  color: var(--a-muted);
+  font-size: 18px;
+  height: 18px;
+  width: 18px;
+  line-height: 17px;
+  padding: 0;
+}
+
+.a-date .react-datepicker__close-icon:hover::after {
+  color: var(--a-text);
+}
+
+html.adm .a-datepicker {
+  z-index: 60;
+  animation: a-pop 0.16s ease-out;
+}
+
+@keyframes a-pop {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+html.adm .a-datepicker .react-datepicker {
+  font-family: inherit;
+  background: var(--a-surface);
+  border: 1px solid var(--a-border);
+  border-radius: 14px;
+  color: var(--a-text);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.55);
+  overflow: hidden;
+}
+
+html.adm .a-datepicker .react-datepicker__header {
+  background: var(--a-surface-2);
+  border-bottom: 1px solid var(--a-border);
+  padding-top: 12px;
+}
+
+html.adm .a-datepicker .react-datepicker__current-month,
+html.adm .a-datepicker .react-datepicker-time__header {
+  color: var(--a-text);
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+html.adm .a-datepicker .react-datepicker__day-name {
+  color: var(--a-muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+html.adm .a-datepicker .react-datepicker__day {
+  color: var(--a-text);
+  width: 2.1rem;
+  line-height: 2.1rem;
+  margin: 0.14rem;
+  border-radius: 9px;
+  transition: background 0.14s ease, color 0.14s ease, transform 0.14s ease;
+}
+
+html.adm .a-datepicker .react-datepicker__day:hover {
+  background: var(--a-accent-dim);
+  color: var(--a-accent);
+  transform: scale(1.06);
+}
+
+html.adm .a-datepicker .react-datepicker__day--outside-month {
+  color: var(--a-muted);
+  opacity: 0.45;
+}
+
+html.adm .a-datepicker .react-datepicker__day--disabled {
+  color: var(--a-muted);
+  opacity: 0.3;
+  pointer-events: none;
+}
+
+html.adm .a-datepicker .react-datepicker__day--today {
+  color: var(--a-accent);
+  font-weight: 700;
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--a-accent);
+}
+
+html.adm .a-datepicker .react-datepicker__day--selected,
+html.adm .a-datepicker .react-datepicker__day--keyboard-selected {
+  background: var(--a-accent);
+  color: #06201c;
+  font-weight: 700;
+  box-shadow: none;
+}
+
+html.adm .a-datepicker .react-datepicker__day--selected:hover {
+  background: #5eead4;
+  color: #06201c;
+}
+
+html.adm .a-datepicker .react-datepicker__navigation-icon::before {
+  border-color: var(--a-muted);
+}
+
+html.adm .a-datepicker .react-datepicker__navigation:hover .react-datepicker__navigation-icon::before {
+  border-color: var(--a-accent);
+}
+
+html.adm .a-datepicker .react-datepicker__month-dropdown-container,
+html.adm .a-datepicker .react-datepicker__year-dropdown-container {
+  margin: 0 4px 6px;
+}
+
+html.adm .a-datepicker select {
+  height: 28px;
+  padding: 0 6px;
+  border: 1px solid var(--a-border);
+  border-radius: 8px;
+  background: var(--a-surface);
+  color: var(--a-text);
+  font: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+html.adm .a-datepicker select:focus {
+  outline: none;
+  border-color: var(--a-accent);
+}
+
+html.adm .a-datepicker .react-datepicker__today-button {
+  background: var(--a-surface-2);
+  border-top: 1px solid var(--a-border);
+  color: var(--a-accent);
+  font-weight: 600;
+  padding: 9px 0;
+  transition: background 0.14s ease;
+}
+
+html.adm .a-datepicker .react-datepicker__today-button:hover {
+  background: var(--a-accent-dim);
+}
+
+/* The month and year dropdowns already say which month this is. */
+html.adm .a-datepicker .react-datepicker__current-month--hasMonthDropdown {
+  display: none;
+}

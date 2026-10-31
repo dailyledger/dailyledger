@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Undo2, Ban } from 'lucide-react';
+import { Undo2, Ban, Plus } from 'lucide-react';
 import {
   getPurchases,
   getPurchaseReturns,
@@ -210,8 +210,9 @@ export default function PurchasesHistory() {
         <h1 className="page-title" style={{ margin: 0 }}>
           Purchases
         </h1>
-        <Link className="btn btn-primary btn-sm" to="/purchases/add">
-          + Add Purchase
+        <Link className="btn-add" to="/purchases/add">
+          <Plus size={18} strokeWidth={2.5} />
+          Add Purchase
         </Link>
       </div>
 

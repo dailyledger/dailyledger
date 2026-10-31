@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Ban } from 'lucide-react';
+import { Ban, Plus } from 'lucide-react';
 import { getProductions, cancelProduction } from '../api';
 import { formatCurrency, formatDate } from '../format';
 import ConfirmDialog from '../components/ConfirmDialog';
@@ -55,8 +55,9 @@ export default function CookingHistory() {
         <h1 className="page-title" style={{ margin: 0 }}>
           Cooking
         </h1>
-        <Link className="btn btn-primary btn-sm" to="/cooking/add">
-          + Add Cooking
+        <Link className="btn-add" to="/cooking/add">
+          <Plus size={18} strokeWidth={2.5} />
+          Add Cooking
         </Link>
       </div>
 
