@@ -35,13 +35,15 @@ const stockMovementSchema = new mongoose.Schema({
       'edit',
       'void',
       'adjustment',
+      'cook_use',
+      'cook_make',
     ],
     required: true,
   },
   // What caused it, so a movement can be traced back to its document.
   ref_model: {
     type: String,
-    enum: ['Purchase', 'Sale', 'Credit', 'Spoilage', 'SalesReturn', 'PurchaseReturn', null],
+    enum: ['Purchase', 'Sale', 'Credit', 'Spoilage', 'SalesReturn', 'PurchaseReturn', 'Production', null],
     default: null,
   },
   ref_id: {

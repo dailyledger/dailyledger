@@ -125,7 +125,11 @@ export default function Inventory() {
                       key={row._id}
                       className={outOfStock ? 'row-out-of-stock' : lowStock ? 'row-low-stock' : ''}
                     >
-                      <td>{row.item_name}</td>
+                      <td>
+                        {row.item_name}
+                        {row.kind === 'raw' && <span className="badge badge-kind"> raw material</span>}
+                        {row.kind === 'cooked' && <span className="badge badge-kind"> cooked</span>}
+                      </td>
                       <td>{row.unit_type}</td>
                       <td className="num">{row.stock_quantity}</td>
                       <td className="num">{formatCurrency(row.last_cost_price)}</td>

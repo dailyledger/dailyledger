@@ -21,6 +21,21 @@ const shopSchema = new mongoose.Schema({
     min: 0,
     max: 12,
   },
+  // Who runs the stall; the admin console filters reports by this.
+  owner_name: {
+    type: String,
+    trim: true,
+    default: '',
+  },
+  phone: {
+    type: String,
+    trim: true,
+    default: '',
+  },
+  active: {
+    type: Boolean,
+    default: true,
+  },
   created_at: {
     type: Date,
     default: Date.now,

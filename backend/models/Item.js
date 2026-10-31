@@ -17,6 +17,14 @@ const itemSchema = new mongoose.Schema({
     enum: ['kg', 'litre', 'piece'],
     required: true,
   },
+  // resale: bought finished and sold as is (cola). raw: an ingredient, only used by
+  // cooking and never sold. cooked: a dish made by a cooking batch and sold.
+  // Items created before this field existed are all resale.
+  kind: {
+    type: String,
+    enum: ['resale', 'raw', 'cooked'],
+    default: 'resale',
+  },
   stock_quantity: {
     type: Number,
     default: 0,

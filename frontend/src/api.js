@@ -1,3 +1,5 @@
+import { IS_ADMIN_SITE } from './appMode';
+
 export const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 const BASE_URL = `${API_URL}/api`;
 
@@ -99,7 +101,10 @@ const del = (path, payload) =>
   request(path, { method: 'DELETE', body: JSON.stringify(payload || {}) });
 
 export const login = (username, password) =>
-  request('/auth/login', { method: 'POST', body: JSON.stringify({ username, password }) });
+  request('/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ username, password, portal: IS_ADMIN_SITE ? 'admin' : 'stall' }),
+  });
 
 export const getItems = () => request('/items');
 export const getItem = (id) => request(`/items/${id}`);
@@ -143,5 +148,39 @@ export const createSpoilage = (payload, key) => post('/spoilage', payload, key);
 export const updateSpoilage = (id, payload) => put(`/spoilage/${id}`, payload);
 export const cancelSpoilage = (id, reason) => del(`/spoilage/${id}`, { reason });
 
+export const getProductions = (range) => request(withDateRange('/production', range));
+export const createProduction = (payload, key) => post('/production', payload, key);
+export const cancelProduction = (id, reason, allowNegative) =>
+  del(`/production/${id}`, { reason, ...(allowNegative ? { allow_negative: true } : {}) });
+
 export const getDashboardSummary = (period = 'day') =>
   request(`/dashboard/summary?period=${period}`);
+
+// ---- Admin console ----
+
+function withParams(path, params = {}) {
+  const query = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') query.set(key, value);
+  });
+  const text = query.toString();
+  return text ? `${path}?${text}` : path;
+}
+
+const patch = (path, payload) =>
+  request(path, { method: 'PATCH', body: JSON.stringify(payload) });
+
+export const adminGetStalls = () => request('/admin/stalls');
+export const adminCreateStall = (payload) => post('/admin/stalls', payload);
+export const adminUpdateStall = (id, payload) => patch(`/admin/stalls/${id}`, payload);
+export const adminResetPassword = (id, password) =>
+  post(`/admin/stalls/${id}/reset-password`, { password });
+export const adminSetStallActive = (id, active) => patch(`/admin/stalls/${id}/active`, { active });
+export const adminDeleteStall = (id, confirm_name) => del(`/admin/stalls/${id}`, { confirm_name });
+
+export const adminGetComparison = (filters) => request(withParams('/admin/comparison', filters));
+export const adminGetOverview = (filters) => request(withParams('/admin/overview', filters));
+export const adminGetAnalytics = (filters) => request(withParams('/admin/analytics', filters));
+export const adminGetReport = (kind, filters) =>
+  request(withParams(`/admin/reports/${kind}`, filters));
+export const adminGetVoided = (filters) => request(withParams('/admin/voided', filters));

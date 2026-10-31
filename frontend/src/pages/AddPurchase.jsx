@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { createPurchase, getPurchase, updatePurchase } from '../api';
+import { createPurchase, getPurchase, updatePurchase, getItems } from '../api';
 import EntryDateField, { entryDatePayload } from '../components/EntryDateField';
 
 const UNIT_TYPES = ['kg', 'litre', 'piece'];
@@ -26,6 +26,23 @@ export default function AddPurchase() {
   const [submitting, setSubmitting] = useState(false);
   const [loading, setLoading] = useState(isEditMode);
   const [entryDate, setEntryDate] = useState(null);
+  const [items, setItems] = useState([]);
+  // What a new item is: bought to resell as is, or a raw material used in cooking.
+  const [newItemKind, setNewItemKind] = useState('resale');
+
+  useEffect(() => {
+    let cancelled = false;
+    getItems()
+      .then((data) => {
+        if (!cancelled) setItems(data);
+      })
+      .catch(() => {
+        if (!cancelled) setItems([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (!isEditMode) return;
@@ -61,13 +78,20 @@ export default function AddPurchase() {
 
   const update = (field, value) => setForm((prev) => ({ ...prev, [field]: value }));
 
+  // An item already in stock keeps its type; only a brand-new item lets you choose.
+  const knownItem = items.find(
+    (it) => it.item_name.toLowerCase() === form.item_name.trim().toLowerCase()
+  );
+  const itemKind = knownItem ? knownItem.kind || 'resale' : newItemKind;
+  const isCookedDish = itemKind === 'cooked';
+
   const packUnits = Number(form.units_per_pack) > 1 ? Number(form.units_per_pack) : 1;
 
-  // Quantity counts packs when a pack size is set, so the rate is per pack and
+  // Quantity counts packs when a pack size is set, so the cost is per pack and
   // the label has to say so.
   const rateUnitLabel = packUnits > 1 ? `per pack of ${packUnits} ${form.unit_type}` : `per ${form.unit_type}`;
 
-  // Preview only. The server multiplies quantity x rate itself and ignores any
+  // Preview only. The server multiplies quantity x cost itself and ignores any
   // total we might send, so this can never disagree with what gets stored.
   const totalAmount =
     form.quantity && form.rate ? Number((Number(form.quantity) * Number(form.rate)).toFixed(2)) : '';
@@ -78,19 +102,25 @@ export default function AddPurchase() {
     setSuccess('');
     setSubmitting(true);
 
-    if (!isEditMode && (!form.selling_price || Number(form.selling_price) <= 0)) {
+    if (isCookedDish) {
+      setError(`"${form.item_name}" is a cooked dish. Record it on the Cooking screen instead.`);
+      setSubmitting(false);
+      return;
+    }
+
+    if (!isEditMode && itemKind === 'resale' && (!form.selling_price || Number(form.selling_price) <= 0)) {
       setError('Selling price is required and must be greater than 0.');
       setSubmitting(false);
       return;
     }
 
     if (!form.rate || Number(form.rate) <= 0) {
-      setError('Rate is required and must be greater than 0.');
+      setError('Cost is required and must be greater than 0.');
       setSubmitting(false);
       return;
     }
 
-    // No total is sent — the server computes quantity x rate.
+    // No total is sent — the server computes quantity x cost.
     const payload = {
       vendor_name: form.vendor_name,
       item_name: form.item_name,
@@ -98,7 +128,8 @@ export default function AddPurchase() {
       unit_type: form.unit_type,
       rate: Number(form.rate),
       units_per_pack: form.units_per_pack ? Number(form.units_per_pack) : 1,
-      selling_price: form.selling_price ? Number(form.selling_price) : undefined,
+      selling_price: itemKind === 'resale' && form.selling_price ? Number(form.selling_price) : undefined,
+      ...(isEditMode ? {} : { item_kind: itemKind }),
       payment_mode: form.payment_mode,
       notes: form.notes || undefined,
       ...entryDatePayload(entryDate),
@@ -153,6 +184,43 @@ export default function AddPurchase() {
           />
         </div>
 
+        {!isEditMode && (
+          <div className="form-group">
+            <label className="form-label">
+              Item type
+              {knownItem && <span className="stock-hint">already in stock</span>}
+            </label>
+            <div className="mode-toggle">
+              <button
+                type="button"
+                className={itemKind === 'resale' ? 'active' : ''}
+                disabled={Boolean(knownItem)}
+                onClick={() => setNewItemKind('resale')}
+              >
+                For resale
+              </button>
+              <button
+                type="button"
+                className={itemKind === 'raw' ? 'active' : ''}
+                disabled={Boolean(knownItem)}
+                onClick={() => setNewItemKind('raw')}
+              >
+                Raw material
+              </button>
+            </div>
+            {itemKind === 'raw' && (
+              <p className="list-item-sub" style={{ marginTop: 6 }}>
+                Raw materials are not sold directly. Use them on the Cooking screen.
+              </p>
+            )}
+            {isCookedDish && (
+              <p className="error-banner" style={{ marginTop: 8 }}>
+                This is a cooked dish. Record it on the Cooking screen.
+              </p>
+            )}
+          </div>
+        )}
+
         <div className="line-item-row">
           <div className="form-group">
             <label className="form-label">Quantity</label>
@@ -205,7 +273,7 @@ export default function AddPurchase() {
         <div className="line-item-row">
           <div className="form-group">
             <label className="form-label">
-              Rate
+              Cost
               <span className="stock-hint">{rateUnitLabel}</span>
             </label>
             <input
@@ -231,7 +299,7 @@ export default function AddPurchase() {
           </div>
         </div>
 
-        {!isEditMode && (
+        {!isEditMode && itemKind === 'resale' && (
           <div className="form-group">
             <label className="form-label">Selling price</label>
             <input
@@ -278,7 +346,7 @@ export default function AddPurchase() {
           />
         </div>
 
-        <button type="submit" className="btn btn-primary" disabled={submitting}>
+        <button type="submit" className="btn btn-primary" disabled={submitting || isCookedDish}>
           {submitting ? 'Saving...' : isEditMode ? 'Save Changes' : 'Save Purchase'}
         </button>
       </form>

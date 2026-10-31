@@ -5,13 +5,16 @@ const cors = require('cors');
 const mongoose = require('mongoose');
 const connectDB = require('./db');
 const requireAuth = require('./middleware/auth');
+const { requireAdmin } = require('./middleware/auth');
 const authRouter = require('./routes/auth');
 const itemsRouter = require('./routes/items');
 const salesRouter = require('./routes/sales');
 const purchasesRouter = require('./routes/purchases');
 const creditsRouter = require('./routes/credits');
 const spoilageRouter = require('./routes/spoilage');
+const productionRouter = require('./routes/production');
 const dashboardRouter = require('./routes/dashboard');
+const adminRouter = require('./routes/admin');
 
 if (!process.env.JWT_SECRET) {
   console.error('JWT_SECRET is not set in .env — refusing to start.');
@@ -62,7 +65,9 @@ app.use('/api/sales', requireAuth, salesRouter);
 app.use('/api/purchases', requireAuth, purchasesRouter);
 app.use('/api/credits', requireAuth, creditsRouter);
 app.use('/api/spoilage', requireAuth, spoilageRouter);
+app.use('/api/production', requireAuth, productionRouter);
 app.use('/api/dashboard', requireAuth, dashboardRouter);
+app.use('/api/admin', requireAdmin, adminRouter);
 
 app.use((err, req, res, next) => {
   if (res.headersSent) return next(err);
