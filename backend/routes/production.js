@@ -7,13 +7,14 @@ const { BadRequestError } = require('../utils/dateFilter');
 const {
   round2,
   round3,
+  round4,
   isPositiveNumber,
   isSaneAmount,
   isSaneQuantity,
   MAX_QUANTITY,
   MAX_ITEM_NAME,
 } = require('../utils/money');
-const { findShortfalls, moveStock } = require('../utils/stock');
+const { findShortfalls, moveStock, assertStockedBy } = require('../utils/stock');
 const { runInTransaction } = require('../utils/tx');
 const {
   writeContext,
@@ -98,7 +99,7 @@ async function resolveBatch(shop, body) {
     seen.add(key);
 
     const quantity = round3(raw.quantity);
-    const costPerUnit = round2(item.last_cost_price);
+    const costPerUnit = round4(item.last_cost_price);
     ingredients.push({
       item_name: item.item_name,
       unit_type: item.unit_type,
@@ -119,7 +120,7 @@ async function resolveBatch(shop, body) {
     quantity,
     ingredients,
     total_cost: totalCost,
-    cost_per_unit: round2(totalCost / quantity),
+    cost_per_unit: round4(totalCost / quantity),
     selling_price: round2(body.selling_price),
     dishItem: dish,
   };
@@ -135,6 +136,10 @@ router.post('/', async (req, res) => {
 
     const ctx = writeContext(req, req.body.date);
     const { dishItem, ...batch } = await resolveBatch(req.shopId, req.body);
+    // An ingredient cannot be used on a date before it was ever bought.
+    for (const ing of batch.ingredients) {
+      await assertStockedBy(req.shopId, ing.item_name, ctx.date_key);
+    }
 
     const allowNegative = req.body.allow_negative === true;
     const shortfalls = await findShortfalls(
@@ -190,6 +195,7 @@ router.post('/', async (req, res) => {
               unit_type: batch.unit_type,
               kind: 'cooked',
               stock_quantity: 0,
+              inventory_value: 0,
               last_cost_price: batch.cost_per_unit,
               last_selling_price: batch.selling_price,
             },
@@ -197,16 +203,11 @@ router.post('/', async (req, res) => {
           session ? { session } : undefined
         );
       } else {
-        // A later batch can cost differently. Blend it with what is still on the
-        // shelf so the unit cost reflects the whole stock, not just the last pot.
-        const onHand = dishItem.stock_quantity;
-        const blended =
-          onHand > 0
-            ? round2((onHand * dishItem.last_cost_price + batch.quantity * batch.cost_per_unit) / (onHand + batch.quantity))
-            : batch.cost_per_unit;
+        // A later batch can cost differently. moveStock blends it with what is still
+        // on the shelf, so only the selling price is set here.
         await Item.updateOne(
           { _id: dishItem._id },
-          { $set: { last_cost_price: blended, last_selling_price: batch.selling_price } },
+          { $set: { last_selling_price: batch.selling_price } },
           session ? { session } : undefined
         );
       }

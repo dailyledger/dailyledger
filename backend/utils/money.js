@@ -22,6 +22,15 @@ function round3(value) {
   return Math.round((n + Number.EPSILON) * 1000) / 1000;
 }
 
+// Unit costs keep four decimals. Rounding a cost like 33.3333 to 33.33 made a pack
+// bought for 100 look like it cost 99.99 once multiplied back; totals are still
+// rounded to paise with round2 at the point they are shown or summed.
+function round4(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return 0;
+  return Math.round((n + Number.EPSILON) * 10000) / 10000;
+}
+
 function isPositiveNumber(value) {
   return typeof value === 'number' && Number.isFinite(value) && value > 0;
 }
@@ -50,6 +59,7 @@ const MAX_PARTY_NAME = 80;
 const MAX_NOTES = 500;
 
 module.exports = {
+  round4,
   round2,
   round3,
   isPositiveNumber,

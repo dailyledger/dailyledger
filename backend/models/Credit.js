@@ -65,6 +65,12 @@ const creditSchema = new mongoose.Schema({
     type: Number,
     default: 0,
   },
+  // Value of goods the customer has brought back; the customer owes
+  // total_amount - returned_amount - amount_paid.
+  returned_amount: {
+    type: Number,
+    default: 0,
+  },
   date: {
     type: Date,
     default: Date.now,

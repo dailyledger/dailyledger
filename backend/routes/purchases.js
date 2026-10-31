@@ -8,6 +8,7 @@ const { BadRequestError } = require('../utils/dateFilter');
 const {
   round2,
   round3,
+  round4,
   isPositiveNumber,
   isSaneAmount,
   isSaneQuantity,
@@ -17,6 +18,7 @@ const {
   MAX_PARTY_NAME,
 } = require('../utils/money');
 const { moveStock } = require('../utils/stock');
+const { changeItemKind } = require('../utils/itemKind');
 const { runInTransaction } = require('../utils/tx');
 const {
   writeContext,
@@ -24,6 +26,13 @@ const {
   idempotencyKeyFrom,
   sendError,
 } = require('../utils/ledger');
+
+// What one stock unit of an existing purchase cost, so cancelling or editing it can
+// take the goods back out of the average at the cost they came in at.
+function unitCostOf(purchase) {
+  const units = purchase.quantity * packSize(purchase.units_per_pack);
+  return units ? round4(purchase.amount / units) : 0;
+}
 
 // A purchase may be entered in packs (a 50kg sack) while stock is tracked in
 // units (kg). quantity * units_per_pack is what actually reaches the shelf.
@@ -98,7 +107,7 @@ function resolvePurchase(body) {
     payment_mode: body.payment_mode,
     totalStockUnits,
     // Cost per stock unit: a 50kg sack at 3000 is 60/kg on the shelf.
-    costPerUnit: totalStockUnits ? round2(amount / totalStockUnits) : 0,
+    costPerUnit: totalStockUnits ? round4(amount / totalStockUnits) : 0,
   };
 }
 
@@ -153,11 +162,18 @@ router.post('/', async (req, res) => {
               'Record it on the Cooking screen instead.'
           );
         }
-        if (req.body.item_kind !== undefined && existingKind !== requestedKind) {
+        // Stock is counted in one unit. Quietly adding litres to a kg count would
+        // corrupt every number that follows.
+        if (catalogItem.unit_type !== p.unit_type) {
           throw new BadRequestError(
-            `"${catalogItem.item_name}" is already stocked as ` +
-              `${existingKind === 'raw' ? 'a raw material' : 'a resale item'}`
+            `"${catalogItem.item_name}" is counted in ${catalogItem.unit_type}, not ${p.unit_type}.`
           );
+        }
+        // A wrong type from the first purchase can be corrected while nothing has
+        // been sold or cooked with the item yet.
+        if (req.body.item_kind !== undefined && existingKind !== requestedKind) {
+          await changeItemKind(req.shopId, catalogItem, requestedKind, session);
+          catalogItem.kind = requestedKind;
         }
       }
 
@@ -170,6 +186,7 @@ router.post('/', async (req, res) => {
               unit_type: p.unit_type,
               kind: requestedKind,
               stock_quantity: 0,
+              inventory_value: 0,
               last_cost_price: p.costPerUnit,
               last_selling_price: sellingPrice,
             },
@@ -178,13 +195,15 @@ router.post('/', async (req, res) => {
         );
         catalogItem = docs[0];
       } else {
-        const update = { last_cost_price: p.costPerUnit };
-        if ((catalogItem.kind || 'resale') === 'resale') update.last_selling_price = sellingPrice;
-        await Item.updateOne(
-          { _id: catalogItem._id },
-          { $set: update },
-          session ? { session } : undefined
-        );
+        // The item's cost is its average, which moveStock updates below. Only the
+        // suggested selling price is set here.
+        if ((catalogItem.kind || 'resale') === 'resale') {
+          await Item.updateOne(
+            { _id: catalogItem._id },
+            { $set: { last_selling_price: sellingPrice } },
+            session ? { session } : undefined
+          );
+        }
       }
 
       const created = new Purchase({
@@ -314,6 +333,11 @@ router.put('/:id', async (req, res) => {
         error: `"${newItem.item_name}" is a cooked dish and cannot be purchased`,
       });
     }
+    if (newItem.unit_type !== p.unit_type) {
+      return res.status(400).json({
+        error: `"${newItem.item_name}" is counted in ${newItem.unit_type}, not ${p.unit_type}.`,
+      });
+    }
 
     // Removing this purchase's stock must not drive the item negative — that
     // would mean more has already been sold than this purchase ever supplied.
@@ -336,6 +360,7 @@ router.put('/:id', async (req, res) => {
         reason: 'edit',
         ref_model: 'Purchase',
         ref_id: purchase._id,
+        cost_per_unit: unitCostOf(purchase),
         date: ctx.date,
         date_key: ctx.date_key,
         note: 'reverse original purchase before edit',
@@ -356,12 +381,6 @@ router.put('/:id', async (req, res) => {
         note: 'apply edited purchase',
         session,
       });
-
-      await Item.updateOne(
-        { _id: newItem._id },
-        { $set: { last_cost_price: p.costPerUnit } },
-        session ? { session } : undefined
-      );
 
       purchase.vendor_name = p.vendor_name;
       purchase.item_name = newItem.item_name;
@@ -430,6 +449,7 @@ router.delete('/:id', async (req, res) => {
         reason: 'void',
         ref_model: 'Purchase',
         ref_id: purchase._id,
+        cost_per_unit: unitCostOf(purchase),
         date: ctx.date,
         date_key: ctx.date_key,
         note: 'purchase cancelled',
@@ -544,6 +564,7 @@ router.post('/:id/return', async (req, res) => {
         reason: 'purchase_return',
         ref_model: 'PurchaseReturn',
         ref_id: created._id,
+        cost_per_unit: unitCostOf(purchase),
         date: ctx.date,
         date_key: ctx.date_key,
         session,
@@ -600,6 +621,7 @@ router.delete('/:id/return/:returnId', async (req, res) => {
         reason: 'void',
         ref_model: 'PurchaseReturn',
         ref_id: purchaseReturn._id,
+        cost_per_unit: unitCostOf(purchase),
         date: ctx.date,
         date_key: ctx.date_key,
         note: 'purchase return cancelled',

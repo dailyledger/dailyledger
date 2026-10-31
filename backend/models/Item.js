@@ -29,9 +29,16 @@ const itemSchema = new mongoose.Schema({
     type: Number,
     default: 0,
   },
+  // The average cost of the stock on the shelf (what sales, spoilage and cooking are
+  // costed at). It is kept up to date by moveStock, not set by purchases directly.
   last_cost_price: {
     type: Number,
     default: 0,
+  },
+  // What the stock on hand is worth at cost. No default on purpose: items created
+  // before this field existed are filled in on their next stock movement.
+  inventory_value: {
+    type: Number,
   },
   last_selling_price: {
     type: Number,

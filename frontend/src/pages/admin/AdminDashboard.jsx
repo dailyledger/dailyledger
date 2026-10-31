@@ -121,13 +121,14 @@ export default function AdminDashboard() {
           )}
         </Card>
 
-        <Card title="Payment split" sub="Cash vs GPay sales">
+        <Card title="Money received" sub="By cash and GPay, including credit collected">
           {overview.data ? (
             <Donut
               format={formatCurrency}
               segments={[
                 { label: 'Cash', value: overview.data.payment_split.cash, color: '#2dd4bf' },
                 { label: 'GPay', value: overview.data.payment_split.gpay, color: '#60a5fa' },
+                { label: 'Credit still to collect', value: totals?.outstanding_credit || 0, color: '#f59e0b' },
               ]}
             />
           ) : (

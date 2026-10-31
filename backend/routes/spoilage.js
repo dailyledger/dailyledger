@@ -4,7 +4,7 @@ const Spoilage = require('../models/Spoilage');
 const Item = require('../models/Item');
 const buildQuery = require('../utils/dateFilter');
 const { BadRequestError } = require('../utils/dateFilter');
-const { round2, round3, isSaneQuantity, MAX_QUANTITY } = require('../utils/money');
+const { round2, round3, round4, isSaneQuantity, MAX_QUANTITY } = require('../utils/money');
 const { findShortfalls, moveStock } = require('../utils/stock');
 const { runInTransaction } = require('../utils/tx');
 const {
@@ -46,7 +46,7 @@ async function resolveEntry(shop, body) {
   }
 
   const quantity = round3(body.quantity);
-  const costPerUnit = round2(catalogItem.last_cost_price);
+  const costPerUnit = round4(catalogItem.last_cost_price);
 
   return {
     item_name: catalogItem.item_name,

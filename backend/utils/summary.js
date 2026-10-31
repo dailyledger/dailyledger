@@ -3,6 +3,8 @@ const Purchase = require('../models/Purchase');
 const Spoilage = require('../models/Spoilage');
 const Credit = require('../models/Credit');
 const SalesReturn = require('../models/SalesReturn');
+const CreditReturn = require('../models/CreditReturn');
+const CreditPayment = require('../models/CreditPayment');
 const PurchaseReturn = require('../models/PurchaseReturn');
 const { round2 } = require('./money');
 
@@ -28,6 +30,8 @@ function emptyTotals() {
     total_sales: 0,
     total_credit_sales: 0,
     total_refunds: 0,
+    credit_collected: 0,
+    money_received: 0,
     revenue: 0,
     cost_of_goods_sold: 0,
     gross_profit: 0,
@@ -39,8 +43,16 @@ function emptyTotals() {
 }
 
 async function summarizeByShop(match) {
-  const [salesAgg, purchaseAgg, purchaseReturnAgg, spoilageAgg, returnAgg, creditAgg] =
-    await Promise.all([
+  const [
+    salesAgg,
+    purchaseAgg,
+    purchaseReturnAgg,
+    spoilageAgg,
+    returnAgg,
+    creditAgg,
+    creditReturnAgg,
+    collectedAgg,
+  ] = await Promise.all([
       Sale.aggregate([{ $match: match }, { $unwind: '$items' }, { $group: LINE_TOTALS }]),
       Purchase.aggregate([{ $match: match }, { $group: { _id: '$shop', total: { $sum: '$amount' } } }]),
       // Stock sent back to the vendor was never really bought, so it comes off the
@@ -66,6 +78,22 @@ async function summarizeByShop(match) {
       // Goods given on credit are also sold goods: their margin belongs in profit
       // even though the cash has not arrived yet.
       Credit.aggregate([{ $match: match }, { $unwind: '$items' }, { $group: LINE_TOTALS }]),
+      // Goods brought back from a credit sale take their revenue and cost back out.
+      CreditReturn.aggregate([
+        { $match: match },
+        {
+          $group: {
+            _id: '$shop',
+            refunds: { $sum: '$refund_amount' },
+            cost: { $sum: { $multiply: ['$quantity', { $ifNull: ['$cost_per_unit', 0] }] } },
+          },
+        },
+      ]),
+      // Money actually collected on credit (refunds are negative), on the day it came in.
+      CreditPayment.aggregate([
+        { $match: match },
+        { $group: { _id: '$shop', total: { $sum: '$amount' } } },
+      ]),
     ]);
 
   const index = (rows) => new Map(rows.map((row) => [String(row._id), row]));
@@ -75,6 +103,8 @@ async function summarizeByShop(match) {
   const spoilage = index(spoilageAgg);
   const returns = index(returnAgg);
   const credits = index(creditAgg);
+  const creditReturns = index(creditReturnAgg);
+  const collected = index(collectedAgg);
 
   const shopIds = new Set([
     ...sales.keys(),
@@ -83,6 +113,8 @@ async function summarizeByShop(match) {
     ...spoilage.keys(),
     ...returns.keys(),
     ...credits.keys(),
+    ...creditReturns.keys(),
+    ...collected.keys(),
   ]);
 
   const result = new Map();
@@ -99,8 +131,16 @@ async function summarizeByShop(match) {
     const total_purchases = round2(pick(purchases, 'total') - purchase_refunds);
     const total_spoilage = round2(pick(spoilage, 'total'));
 
-    const revenue = round2(sales_revenue + credit_revenue - refunds);
-    const cost_of_goods_sold = round2(sales_cogs + credit_cogs - refund_cost);
+    const credit_refunds = round2(pick(creditReturns, 'refunds'));
+    const credit_refund_cost = round2(pick(creditReturns, 'cost'));
+    const credit_collected = round2(pick(collected, 'total'));
+
+    const revenue = round2(sales_revenue + credit_revenue - refunds - credit_refunds);
+    const cost_of_goods_sold = round2(sales_cogs + credit_cogs - refund_cost - credit_refund_cost);
+
+    // Cash that really came in: cash/GPay sales, less what was handed back on returns,
+    // plus credit collected (credit refunds are already negative payments).
+    const money_received = round2(sales_revenue - refunds + credit_collected);
 
     // Gross profit is what the goods sold for minus what those same goods cost.
     // Purchases only affect profit once the stock actually sells.
@@ -110,15 +150,18 @@ async function summarizeByShop(match) {
     result.set(id, {
       total_sales: sales_revenue,
       total_credit_sales: credit_revenue,
-      total_refunds: refunds,
+      total_refunds: round2(refunds + credit_refunds),
+      credit_collected,
+      money_received,
       revenue,
       cost_of_goods_sold,
       gross_profit,
       total_spoilage,
       net_profit,
-      // Kept for the cash view: what actually left the till for stock.
+      // What actually left the till for stock, and the real cash position: money that
+      // came in minus money that went out on stock.
       total_purchases,
-      cash_flow: round2(revenue - total_purchases),
+      cash_flow: round2(money_received - total_purchases),
     });
   }
 
@@ -135,7 +178,15 @@ async function outstandingCreditByShop(shopFilter = {}) {
     {
       $group: {
         _id: '$shop',
-        total: { $sum: { $subtract: ['$total_amount', '$amount_paid'] } },
+        // What the customer still owes: the credit less goods returned less money paid.
+        total: {
+          $sum: {
+            $subtract: [
+              { $subtract: ['$total_amount', { $ifNull: ['$returned_amount', 0] }] },
+              '$amount_paid',
+            ],
+          },
+        },
       },
     },
   ]);

@@ -4,6 +4,7 @@ const express = require('express');
 const cors = require('cors');
 const mongoose = require('mongoose');
 const connectDB = require('./db');
+const { backfillCreditPayments } = require('./utils/creditBackfill');
 const requireAuth = require('./middleware/auth');
 const { requireAdmin } = require('./middleware/auth');
 const authRouter = require('./routes/auth');
@@ -77,7 +78,15 @@ app.use((err, req, res, next) => {
 
 const PORT = process.env.PORT || 5000;
 
-connectDB().then(() => {
+connectDB().then(async () => {
+  try {
+    const filled = await backfillCreditPayments();
+    if (filled) console.log(`Recorded ${filled} earlier credit payment(s) individually`);
+  } catch (err) {
+    // Not worth stopping the API for: the old "paid so far" figure is still correct.
+    console.error('Credit payment backfill failed:', err.message);
+  }
+
   app.listen(PORT, () => {
     console.log(`DailyLedger API listening on port ${PORT}`);
   });

@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { Boxes, ArrowUp, ArrowDown } from 'lucide-react';
-import { getItems } from '../api';
+import { getItems, changeItemKind } from '../api';
+import ConfirmDialog from '../components/ConfirmDialog';
 import { formatCurrency } from '../format';
 
 const LOW_STOCK_THRESHOLD = 5;
@@ -20,6 +21,8 @@ export default function Inventory() {
   const [error, setError] = useState('');
   const [sortKey, setSortKey] = useState('item_name');
   const [sortDir, setSortDir] = useState('asc');
+  const [toChange, setToChange] = useState(null);
+  const [changing, setChanging] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -40,14 +43,25 @@ export default function Inventory() {
     };
   }, []);
 
-  const rows = useMemo(
-    () =>
-      items.map((item) => ({
-        ...item,
-        stock_value: (item.stock_quantity || 0) * (item.last_cost_price || 0),
-      })),
-    [items]
-  );
+  // stock_value comes from the server: what the stock on hand is worth at its average cost.
+  const rows = useMemo(() => items.map((item) => ({ ...item })), [items]);
+
+  // The first purchase decides an item's type. If it was wrong, it can be corrected
+  // until the item has been sold (to raw) or used in cooking (to resale).
+  const confirmChange = async () => {
+    setChanging(true);
+    setError('');
+    try {
+      const kind = toChange.kind === 'raw' ? 'resale' : 'raw';
+      await changeItemKind(toChange._id, kind);
+      setItems((list) => list.map((it) => (it._id === toChange._id ? { ...it, kind } : it)));
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setChanging(false);
+      setToChange(null);
+    }
+  };
 
   const sortedRows = useMemo(() => {
     const sorted = [...rows].sort((a, b) => {
@@ -143,6 +157,16 @@ export default function Inventory() {
                         )}
                         {outOfStock && <span className="badge badge-out-of-stock">No Stock</span>}
                         {lowStock && <span className="badge badge-unpaid">Low Stock</span>}
+                        {row.kind !== 'cooked' && (
+                          <button
+                            type="button"
+                            className="btn btn-secondary btn-sm"
+                            style={{ marginLeft: 6 }}
+                            onClick={() => setToChange(row)}
+                          >
+                            {row.kind === 'raw' ? 'Make resale' : 'Make raw'}
+                          </button>
+                        )}
                       </td>
                     </tr>
                   );
@@ -159,6 +183,27 @@ export default function Inventory() {
           </div>
         </>
       )}
+
+      <ConfirmDialog
+        open={Boolean(toChange)}
+        title={
+          toChange
+            ? `Change ${toChange.item_name} to ${toChange.kind === 'raw' ? 'a resale item' : 'a raw material'}?`
+            : ''
+        }
+        message={
+          toChange
+            ? toChange.kind === 'raw'
+              ? 'It will appear on the Sale screen. This is only allowed if it has not been used in cooking.'
+              : 'It will disappear from the Sale screen and can be used in cooking. This is only allowed if it has not been sold.'
+            : ''
+        }
+        confirmLabel="Change type"
+        cancelLabel="Keep it"
+        busy={changing}
+        onConfirm={confirmChange}
+        onCancel={() => setToChange(null)}
+      />
     </div>
   );
 }

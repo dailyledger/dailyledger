@@ -97,6 +97,9 @@ const post = (path, payload, idempotencyKey) =>
 
 const put = (path, payload) => request(path, { method: 'PUT', body: JSON.stringify(payload) });
 
+const patch = (path, payload) =>
+  request(path, { method: 'PATCH', body: JSON.stringify(payload) });
+
 const del = (path, payload) =>
   request(path, { method: 'DELETE', body: JSON.stringify(payload || {}) });
 
@@ -136,11 +139,17 @@ export const getCredit = (id) => request(`/credits/${id}`);
 export const createCredit = (payload, key) => post('/credits', payload, key);
 export const updateCredit = (id, payload) => put(`/credits/${id}`, payload);
 export const cancelCredit = (id, reason) => del(`/credits/${id}`, { reason });
-export const payCredit = (id, amount_paid) =>
+export const payCredit = (id, amount_paid, payment_mode = 'cash') =>
   request(`/credits/${id}/pay`, {
     method: 'PATCH',
-    body: JSON.stringify({ amount_paid }),
+    body: JSON.stringify({ amount_paid, payment_mode }),
   });
+export const cancelCreditPayment = (id, paymentId) => del(`/credits/${id}/payment/${paymentId}`);
+export const createCreditReturn = (id, payload, key) => post(`/credits/${id}/return`, payload, key);
+export const cancelCreditReturn = (id, returnId, allowNegative) =>
+  del(`/credits/${id}/return/${returnId}`, allowNegative ? { allow_negative: true } : {});
+
+export const changeItemKind = (id, kind) => patch(`/items/${id}/kind`, { kind });
 
 export const getSpoilageEntries = (range) => request(withDateRange('/spoilage', range));
 export const getSpoilageEntry = (id) => request(`/spoilage/${id}`);
@@ -166,9 +175,6 @@ function withParams(path, params = {}) {
   const text = query.toString();
   return text ? `${path}?${text}` : path;
 }
-
-const patch = (path, payload) =>
-  request(path, { method: 'PATCH', body: JSON.stringify(payload) });
 
 export const adminGetStalls = () => request('/admin/stalls');
 export const adminCreateStall = (payload) => post('/admin/stalls', payload);

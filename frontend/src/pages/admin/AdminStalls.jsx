@@ -9,7 +9,36 @@ import {
   adminDeleteStall,
 } from '../../api';
 
-const EMPTY_FORM = { name: '', phone: '', username: '', password: '' };
+const EMPTY_FORM = { name: '', phone: '', day_start_hour: 0, username: '', password: '' };
+
+// A stall that sells past midnight can count those sales for the evening before.
+const DAY_STARTS = [
+  [0, '12 am (midnight)'],
+  [1, '1 am'],
+  [2, '2 am'],
+  [3, '3 am'],
+  [4, '4 am'],
+  [5, '5 am'],
+  [6, '6 am'],
+];
+
+function DayStartField({ value, onChange }) {
+  return (
+    <div className="a-field">
+      <label className="a-label">Business day starts at</label>
+      <select className="a-select" value={value} onChange={(e) => onChange(Number(e.target.value))}>
+        {DAY_STARTS.map(([hour, label]) => (
+          <option key={hour} value={hour}>
+            {label}
+          </option>
+        ))}
+      </select>
+      <p className="a-modal-note" style={{ margin: '6px 0 0' }}>
+        Sales before this hour count for the previous day. Use 4 am for a stall open past midnight.
+      </p>
+    </div>
+  );
+}
 
 function Modal({ title, onClose, busy, error, children, confirm }) {
   return (
@@ -144,7 +173,7 @@ export default function AdminStalls() {
                   </td>
                   <td>
                     <div className="a-row-actions">
-                      <button className="a-btn a-btn-sm" title="Edit" onClick={() => setModal({ kind: 'edit', stall, name: stall.name, phone: stall.phone })}>
+                      <button className="a-btn a-btn-sm" title="Edit" onClick={() => setModal({ kind: 'edit', stall, name: stall.name, phone: stall.phone, day_start_hour: stall.day_start_hour || 0 })}>
                         <Pencil size={14} /> Edit
                       </button>
                       <button className="a-btn a-btn-sm" title="Reset password" onClick={() => setModal({ kind: 'password', stall, password: '' })}>
@@ -184,6 +213,7 @@ export default function AdminStalls() {
             <Field label="Phone">
               <input className="a-input" value={modal.phone} onChange={(e) => set({ phone: e.target.value })} maxLength={20} />
             </Field>
+            <DayStartField value={modal.day_start_hour} onChange={(day_start_hour) => set({ day_start_hour })} />
             <Field label="Login username">
               <input className="a-input" value={modal.username} onChange={(e) => set({ username: e.target.value })} minLength={3} maxLength={40} required autoComplete="off" />
             </Field>
@@ -205,7 +235,7 @@ export default function AdminStalls() {
             disabled: !modal.name.trim(),
             onClick: () =>
               run(
-                () => adminUpdateStall(modal.stall.id, { name: modal.name, phone: modal.phone }),
+                () => adminUpdateStall(modal.stall.id, { name: modal.name, phone: modal.phone, day_start_hour: modal.day_start_hour }),
                 'Stall updated.'
               ),
           }}
@@ -217,6 +247,7 @@ export default function AdminStalls() {
             <Field label="Phone">
               <input className="a-input" value={modal.phone} onChange={(e) => set({ phone: e.target.value })} maxLength={20} />
             </Field>
+            <DayStartField value={modal.day_start_hour} onChange={(day_start_hour) => set({ day_start_hour })} />
           </div>
         </Modal>
       )}

@@ -19,6 +19,8 @@ import { exportExcel, exportPdf } from './exportReport';
 const dateOnly = (value) =>
   value ? new Date(value).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '';
 
+const paymentLabel = (mode) => ({ cash: 'Cash', gpay: 'GPay', credit: 'Credit', return: 'Return' })[mode] || mode;
+
 /*
  * One config per report type: how to fetch it, which columns it shows, and its
  * totals row. `key` columns read from the row; `money` columns are right-aligned
@@ -33,7 +35,7 @@ const REPORTS = {
       { key: 'date', label: 'Date', fmt: dateOnly },
       { key: 'stall', label: 'Customer' },
       { key: 'detail', label: 'Items' },
-      { key: 'payment_mode', label: 'Payment' },
+      { key: 'payment_mode', label: 'Payment', fmt: paymentLabel },
       { key: 'amount', label: 'Amount', money: true },
     ],
     totals: (res) => ({ amount: res.total }),
@@ -302,6 +304,7 @@ export default function AdminReports() {
                   <option value="">All</option>
                   <option value="cash">Cash</option>
                   <option value="gpay">GPay</option>
+                  <option value="credit">Credit</option>
                 </select>
               </div>
               {form.type !== 'sales-by-product' && (
