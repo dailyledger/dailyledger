@@ -64,6 +64,12 @@ async function resolveLines(shop, rawItems, previousLines = []) {
         `Item "${raw.item_name}" must be purchased/added first before it can be sold`
       );
     }
+    if (catalogItem.kind === 'raw') {
+      throw new BadRequestError(
+        `"${catalogItem.item_name}" is a raw material and cannot be sold. ` +
+          'Use it in a cooking batch instead.'
+      );
+    }
     if (raw.unit_type && catalogItem.unit_type !== raw.unit_type) {
       throw new BadRequestError(
         `Unit type mismatch for "${catalogItem.item_name}": catalog uses ` +

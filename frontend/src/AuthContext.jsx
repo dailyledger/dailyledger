@@ -27,6 +27,14 @@ function readStoredToken() {
   return null;
 }
 
+function usernameFromToken(token) {
+  try {
+    return JSON.parse(atob(token.split('.')[1])).username || '';
+  } catch {
+    return '';
+  }
+}
+
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
@@ -62,7 +70,12 @@ export function AuthProvider({ children }) {
   }, []);
 
   const value = useMemo(
-    () => ({ isAuthenticated: Boolean(token), login, logout }),
+    () => ({
+      isAuthenticated: Boolean(token),
+      username: token ? usernameFromToken(token) : '',
+      login,
+      logout,
+    }),
     [token, login, logout]
   );
 

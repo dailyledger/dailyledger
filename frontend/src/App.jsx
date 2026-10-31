@@ -11,11 +11,19 @@ import CreditLedger from './pages/CreditLedger';
 import AddCredit from './pages/AddCredit';
 import SpoilageHistory from './pages/SpoilageHistory';
 import AddSpoilage from './pages/AddSpoilage';
-import Reports from './pages/Reports';
 import Inventory from './pages/Inventory';
+import CookingHistory from './pages/CookingHistory';
+import AddCooking from './pages/AddCooking';
+import AdminApp from './pages/admin/AdminApp';
+import AdminLogin from './pages/admin/AdminLogin';
+import { IS_ADMIN_SITE } from './appMode';
 
 export default function App() {
   const { isAuthenticated } = useAuth();
+
+  if (IS_ADMIN_SITE) {
+    return isAuthenticated ? <AdminApp /> : <AdminLogin />;
+  }
 
   if (!isAuthenticated) {
     return <Login />;
@@ -39,7 +47,8 @@ export default function App() {
           <Route path="/spoilage" element={<SpoilageHistory />} />
           <Route path="/spoilage/add" element={<AddSpoilage />} />
           <Route path="/spoilage/:id/edit" element={<AddSpoilage />} />
-          <Route path="/reports" element={<Reports />} />
+          <Route path="/cooking" element={<CookingHistory />} />
+          <Route path="/cooking/add" element={<AddCooking />} />
           <Route path="/inventory" element={<Inventory />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

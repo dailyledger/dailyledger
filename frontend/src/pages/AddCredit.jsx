@@ -41,7 +41,8 @@ export default function AddCredit() {
 
     getItems()
       .then((data) => {
-        if (!cancelled) setItems(data);
+        // Raw materials are only used in cooking, so they are not offered for sale.
+        if (!cancelled) setItems(data.filter((it) => it.kind !== 'raw'));
       })
       .catch(() => {
         if (!cancelled) setItems([]);

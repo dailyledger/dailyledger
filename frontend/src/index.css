@@ -1140,3 +1140,31 @@ button, input, select, textarea {
   border-top: 1px solid var(--color-border);
 }
 .return-row:first-of-type { border-top: none; }
+
+/* Cooking */
+.badge-kind {
+  background: var(--brand-color-tint);
+  color: var(--brand-color);
+  font-weight: 600;
+}
+
+.admin-heading-lite {
+  font-size: 1rem;
+  margin: 18px 0 10px;
+}
+
+.cook-sum {
+  display: flex;
+  justify-content: space-between;
+  padding: 3px 0;
+  font-size: 1rem;
+}
+
+.cook-sum .negative {
+  color: var(--color-danger);
+}
+
+.mode-toggle button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}

@@ -71,7 +71,7 @@ function resolvePurchase(body) {
 
   if (isPositiveNumber(body.rate)) {
     if (!isSaneAmount(body.rate)) {
-      throw new BadRequestError(`Rate must be between 0 and ${MAX_UNIT_AMOUNT}`);
+      throw new BadRequestError(`Cost must be between 0 and ${MAX_UNIT_AMOUNT}`);
     }
     rate = round2(body.rate);
     amount = round2(quantity * rate);
@@ -79,10 +79,10 @@ function resolvePurchase(body) {
     amount = round2(body.amount);
     rate = round2(amount / quantity);
     if (!isSaneAmount(rate)) {
-      throw new BadRequestError(`Rate must be between 0 and ${MAX_UNIT_AMOUNT}`);
+      throw new BadRequestError(`Cost must be between 0 and ${MAX_UNIT_AMOUNT}`);
     }
   } else {
-    throw new BadRequestError('Rate must be greater than 0');
+    throw new BadRequestError('Cost must be greater than 0');
   }
 
   const totalStockUnits = round3(quantity * unitsPerPack);
@@ -111,7 +111,24 @@ router.post('/', async (req, res) => {
     }
 
     const { selling_price } = req.body;
-    if (!isPositiveNumber(selling_price)) {
+
+    // A purchase is either something to resell as is, or a raw material that only
+    // cooking uses. Raw materials are never sold, so they carry no selling price.
+    if (req.body.item_kind !== undefined && !['resale', 'raw'].includes(req.body.item_kind)) {
+      return res.status(400).json({ error: 'Item type must be "resale" or "raw"' });
+    }
+
+    // Re-buying a known item without saying its type keeps the type it already has.
+    let requestedKind = req.body.item_kind;
+    if (!requestedKind) {
+      const known =
+        typeof req.body.item_name === 'string' && req.body.item_name.trim()
+          ? await Item.findByName(req.shopId, req.body.item_name)
+          : null;
+      requestedKind = known && known.kind === 'raw' ? 'raw' : 'resale';
+    }
+
+    if (requestedKind === 'resale' && !isPositiveNumber(selling_price)) {
       return res
         .status(400)
         .json({ error: 'Selling price is required and must be greater than 0' });
@@ -119,12 +136,30 @@ router.post('/', async (req, res) => {
 
     const ctx = writeContext(req, req.body.date);
     const p = resolvePurchase(req.body);
-    const sellingPrice = round2(selling_price);
+    const sellingPrice = requestedKind === 'raw' ? 0 : round2(selling_price);
 
     const purchase = await runInTransaction(async (session) => {
       // Purchases are the only way an item enters the catalog — creating one
       // directly would let it be sold with stock that was never bought.
       let catalogItem = await Item.findByName(req.shopId, p.item_name, session);
+
+      // An item keeps its kind for life: stock of "Lemon" cannot be half raw material
+      // and half for resale, and a cooked dish is made, not bought.
+      if (catalogItem) {
+        const existingKind = catalogItem.kind || 'resale';
+        if (existingKind === 'cooked') {
+          throw new BadRequestError(
+            `"${catalogItem.item_name}" is a cooked dish and cannot be purchased. ` +
+              'Record it on the Cooking screen instead.'
+          );
+        }
+        if (req.body.item_kind !== undefined && existingKind !== requestedKind) {
+          throw new BadRequestError(
+            `"${catalogItem.item_name}" is already stocked as ` +
+              `${existingKind === 'raw' ? 'a raw material' : 'a resale item'}`
+          );
+        }
+      }
 
       if (!catalogItem) {
         const docs = await Item.create(
@@ -133,6 +168,7 @@ router.post('/', async (req, res) => {
               shop: ctx.shop,
               item_name: p.item_name,
               unit_type: p.unit_type,
+              kind: requestedKind,
               stock_quantity: 0,
               last_cost_price: p.costPerUnit,
               last_selling_price: sellingPrice,
@@ -142,9 +178,11 @@ router.post('/', async (req, res) => {
         );
         catalogItem = docs[0];
       } else {
+        const update = { last_cost_price: p.costPerUnit };
+        if ((catalogItem.kind || 'resale') === 'resale') update.last_selling_price = sellingPrice;
         await Item.updateOne(
           { _id: catalogItem._id },
-          { $set: { last_cost_price: p.costPerUnit, last_selling_price: sellingPrice } },
+          { $set: update },
           session ? { session } : undefined
         );
       }
@@ -270,6 +308,11 @@ router.put('/:id', async (req, res) => {
     const newItem = await Item.findByName(req.shopId, p.item_name);
     if (!newItem) {
       return res.status(400).json({ error: `Item "${p.item_name}" not found in this shop` });
+    }
+    if (newItem.kind === 'cooked') {
+      return res.status(400).json({
+        error: `"${newItem.item_name}" is a cooked dish and cannot be purchased`,
+      });
     }
 
     // Removing this purchase's stock must not drive the item negative — that
