@@ -8,13 +8,14 @@ const { BadRequestError } = require('../utils/dateFilter');
 const {
   round2,
   round3,
+  round4,
   isPositiveNumber,
   isSaneAmount,
   isSaneQuantity,
   MAX_UNIT_AMOUNT,
   MAX_QUANTITY,
 } = require('../utils/money');
-const { findShortfalls, moveStock } = require('../utils/stock');
+const { findShortfalls, moveStock, assertStockedBy } = require('../utils/stock');
 const { runInTransaction } = require('../utils/tx');
 const {
   writeContext,
@@ -51,6 +52,9 @@ async function resolveLines(shop, rawItems, previousLines = []) {
       throw new BadRequestError(
         `Quantity for "${raw.item_name}" must be between 0 and ${MAX_QUANTITY}`
       );
+    }
+    if (!(raw.price_per_unit > 0)) {
+      throw new BadRequestError(`Price for "${raw.item_name}" must be greater than 0`);
     }
     if (!isSaneAmount(raw.price_per_unit)) {
       throw new BadRequestError(
@@ -89,7 +93,7 @@ async function resolveLines(shop, rawItems, previousLines = []) {
       quantity,
       price_per_unit: pricePerUnit,
       // Blocker 02: freeze the cost at the time of sale.
-      cost_per_unit: previous ? previous.cost_per_unit : round2(catalogItem.last_cost_price),
+      cost_per_unit: previous ? previous.cost_per_unit : round4(catalogItem.last_cost_price),
       line_total: round2(quantity * pricePerUnit),
       bargained: Boolean(raw.bargained),
     });
@@ -135,6 +139,7 @@ router.post('/', async (req, res) => {
 
     const ctx = writeContext(req, req.body.date);
     const lines = await resolveLines(req.shopId, req.body.items);
+    for (const line of lines) await assertStockedBy(req.shopId, line.item_name, ctx.date_key);
     const paymentMode = validatePaymentMode(req.body.payment_mode);
 
     // Blocker 06b: staff record sales that have already happened. If our count
@@ -294,6 +299,7 @@ router.put('/:id', async (req, res) => {
     const ctx = writeContext(req, req.body.date || sale.date);
     const originalLines = sale.items.map((l) => l.toObject());
     const lines = await resolveLines(req.shopId, req.body.items, originalLines);
+    for (const line of lines) await assertStockedBy(req.shopId, line.item_name, ctx.date_key);
     const paymentMode = validatePaymentMode(req.body.payment_mode);
 
     // Net effect per item: what we give back minus what we take. Only a net

@@ -50,6 +50,8 @@ router.get('/summary', async (req, res) => {
       total_sales: totals.total_sales,
       total_credit_sales: totals.total_credit_sales,
       total_refunds: totals.total_refunds,
+      credit_collected: totals.credit_collected,
+      money_received: totals.money_received,
       revenue: totals.revenue,
 
       cost_of_goods_sold: totals.cost_of_goods_sold,

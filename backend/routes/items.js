@@ -4,6 +4,7 @@ const Item = require('../models/Item');
 const StockMovement = require('../models/StockMovement');
 const { round2, round3 } = require('../utils/money');
 const { sendError } = require('../utils/ledger');
+const { changeItemKind } = require('../utils/itemKind');
 
 // Items are only ever created as a side effect of a Purchase (see routes/purchases.js).
 // There is deliberately no POST / here — creating an item directly would let it be
@@ -17,7 +18,10 @@ router.get('/', async (req, res) => {
     res.json(
       items.map((item) => ({
         ...item.toObject(),
-        stock_value: round2(item.stock_quantity * item.last_cost_price),
+        // What the stock on hand is worth, from the running average-cost value.
+        stock_value: round2(
+          item.inventory_value ?? Math.max(item.stock_quantity, 0) * item.last_cost_price
+        ),
         // Negative stock means an entry is missing rather than that we owe
         // anyone goods — surface it so the owner can find the gap.
         needs_review: item.stock_quantity < 0,
@@ -35,6 +39,20 @@ router.get('/:id', async (req, res) => {
       return res.status(404).json({ error: 'Item not found' });
     }
     res.json(item);
+  } catch (err) {
+    sendError(res, err);
+  }
+});
+
+// Correct an item's type (resale <-> raw material) while that is still safe.
+router.patch('/:id/kind', async (req, res) => {
+  try {
+    const item = await Item.findOne({ _id: req.params.id, shop: req.shopId });
+    if (!item) {
+      return res.status(404).json({ error: 'Item not found' });
+    }
+    await changeItemKind(req.shopId, item, req.body?.kind);
+    res.json({ id: item._id, kind: req.body.kind });
   } catch (err) {
     sendError(res, err);
   }

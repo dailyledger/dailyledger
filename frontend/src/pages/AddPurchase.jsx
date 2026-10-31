@@ -27,8 +27,9 @@ export default function AddPurchase() {
   const [loading, setLoading] = useState(isEditMode);
   const [entryDate, setEntryDate] = useState(null);
   const [items, setItems] = useState([]);
-  // What a new item is: bought to resell as is, or a raw material used in cooking.
-  const [newItemKind, setNewItemKind] = useState('resale');
+  // What the item is: bought to resell as is, or a raw material used in cooking. Null
+  // means "whatever the item already is", or resale for a brand-new item.
+  const [kindChoice, setKindChoice] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -78,18 +79,21 @@ export default function AddPurchase() {
 
   const update = (field, value) => setForm((prev) => ({ ...prev, [field]: value }));
 
-  // An item already in stock keeps its type; only a brand-new item lets you choose.
   const knownItem = items.find(
     (it) => it.item_name.toLowerCase() === form.item_name.trim().toLowerCase()
   );
-  const itemKind = knownItem ? knownItem.kind || 'resale' : newItemKind;
-  const isCookedDish = itemKind === 'cooked';
+  const knownKind = knownItem ? knownItem.kind || 'resale' : null;
+  const itemKind = kindChoice || knownKind || 'resale';
+  const isCookedDish = knownKind === 'cooked';
+  // Stock is counted in one unit, so an item already in stock fixes the unit.
+  const unitType = knownItem ? knownItem.unit_type : form.unit_type;
+  const changesType = Boolean(knownItem) && !isCookedDish && itemKind !== knownKind;
 
   const packUnits = Number(form.units_per_pack) > 1 ? Number(form.units_per_pack) : 1;
 
   // Quantity counts packs when a pack size is set, so the cost is per pack and
   // the label has to say so.
-  const rateUnitLabel = packUnits > 1 ? `per pack of ${packUnits} ${form.unit_type}` : `per ${form.unit_type}`;
+  const rateUnitLabel = packUnits > 1 ? `per pack of ${packUnits} ${unitType}` : `per ${unitType}`;
 
   // Preview only. The server multiplies quantity x cost itself and ignores any
   // total we might send, so this can never disagree with what gets stored.
@@ -125,7 +129,7 @@ export default function AddPurchase() {
       vendor_name: form.vendor_name,
       item_name: form.item_name,
       quantity: Number(form.quantity),
-      unit_type: form.unit_type,
+      unit_type: unitType,
       rate: Number(form.rate),
       units_per_pack: form.units_per_pack ? Number(form.units_per_pack) : 1,
       selling_price: itemKind === 'resale' && form.selling_price ? Number(form.selling_price) : undefined,
@@ -178,7 +182,10 @@ export default function AddPurchase() {
           <input
             className="form-input"
             value={form.item_name}
-            onChange={(e) => update('item_name', e.target.value)}
+            onChange={(e) => {
+              update('item_name', e.target.value);
+              setKindChoice(null);
+            }}
             maxLength={60}
             required
           />
@@ -194,23 +201,29 @@ export default function AddPurchase() {
               <button
                 type="button"
                 className={itemKind === 'resale' ? 'active' : ''}
-                disabled={Boolean(knownItem)}
-                onClick={() => setNewItemKind('resale')}
+                disabled={isCookedDish}
+                onClick={() => setKindChoice('resale')}
               >
                 For resale
               </button>
               <button
                 type="button"
                 className={itemKind === 'raw' ? 'active' : ''}
-                disabled={Boolean(knownItem)}
-                onClick={() => setNewItemKind('raw')}
+                disabled={isCookedDish}
+                onClick={() => setKindChoice('raw')}
               >
                 Raw material
               </button>
             </div>
-            {itemKind === 'raw' && (
+            {itemKind === 'raw' && !changesType && (
               <p className="list-item-sub" style={{ marginTop: 6 }}>
                 Raw materials are not sold directly. Use them on the Cooking screen.
+              </p>
+            )}
+            {changesType && (
+              <p className="list-item-sub" style={{ marginTop: 6 }}>
+                This changes the item's type. It is only allowed while the item has not been{' '}
+                {itemKind === 'raw' ? 'sold' : 'used in cooking'}.
               </p>
             )}
             {isCookedDish && (
@@ -235,10 +248,14 @@ export default function AddPurchase() {
             />
           </div>
           <div className="form-group">
-            <label className="form-label">Unit type</label>
+            <label className="form-label">
+              Unit type
+              {knownItem && <span className="stock-hint">fixed for this item</span>}
+            </label>
             <select
               className="form-select"
-              value={form.unit_type}
+              value={unitType}
+              disabled={Boolean(knownItem)}
               onChange={(e) => update('unit_type', e.target.value)}
             >
               {UNIT_TYPES.map((u) => (
@@ -255,7 +272,7 @@ export default function AddPurchase() {
             Units per pack (optional)
             {form.units_per_pack > 1 && form.quantity && (
               <span className="stock-hint">
-                = {Number(form.quantity) * Number(form.units_per_pack)} {form.unit_type} total
+                = {Number(form.quantity) * Number(form.units_per_pack)} {unitType} total
               </span>
             )}
           </label>

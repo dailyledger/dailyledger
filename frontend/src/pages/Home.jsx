@@ -88,6 +88,12 @@ export default function Home() {
                 </div>
               </div>
 
+              {/* Cash and GPay sales plus credit collected, less money handed back on returns. */}
+              <div className="stat-tile">
+                <div className="stat-label">Money Received</div>
+                <div className="stat-value">{formatCurrency(summary.money_received)}</div>
+              </div>
+
               <div className="stat-tile">
                 <div className="stat-label">Expired/Damaged</div>
                 <div className="stat-value">{formatCurrency(summary.total_spoilage)}</div>
@@ -98,7 +104,7 @@ export default function Home() {
                 <div className="stat-value">{formatCurrency(summary.total_purchases)}</div>
               </div>
 
-              <div className="stat-tile" style={{ gridColumn: '1 / -1' }}>
+              <div className="stat-tile">
                 <div className="stat-label">Outstanding Credit</div>
                 <div className="stat-value negative">
                   {formatCurrency(summary.total_outstanding_credit)}

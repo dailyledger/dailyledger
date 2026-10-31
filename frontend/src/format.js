@@ -1,6 +1,7 @@
 export function formatCurrency(value) {
   const n = Number(value) || 0;
-  return `₹${n.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
+  const text = Math.abs(n).toLocaleString('en-IN', { maximumFractionDigits: 2 });
+  return n < 0 ? `-₹${text}` : `₹${text}`;
 }
 
 export function formatDate(value) {
