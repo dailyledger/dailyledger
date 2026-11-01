@@ -325,9 +325,9 @@ export default function CreditLedger() {
               })}
             </div>
 
-            {detail && (detail.payments.length > 0 || detail.returns.length > 0) && (
+            {detail && ((detail.payments || []).length > 0 || (detail.returns || []).length > 0) && (
               <div className="card" style={{ marginBottom: 12 }}>
-                {detail.payments.map((p) => (
+                {(detail.payments || []).map((p) => (
                   <div key={p._id} className="list-item-sub" style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
                     <span>
                       {p.kind === 'refund' ? 'Refunded' : 'Paid'} {formatCurrency(Math.abs(p.amount))} by{' '}
@@ -340,7 +340,7 @@ export default function CreditLedger() {
                     )}
                   </div>
                 ))}
-                {detail.returns.map((r) => (
+                {(detail.returns || []).map((r) => (
                   <div key={r._id} className="list-item-sub" style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
                     <span>
                       Returned {r.quantity} × {r.item_name} ({formatCurrency(r.refund_amount)}) &middot; {formatDate(r.date)}

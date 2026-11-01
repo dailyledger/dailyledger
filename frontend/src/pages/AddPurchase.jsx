@@ -77,7 +77,10 @@ export default function AddPurchase() {
     };
   }, [id, isEditMode]);
 
-  const update = (field, value) => setForm((prev) => ({ ...prev, [field]: value }));
+  const update = (field, value) => {
+    setError('');
+    setForm((prev) => ({ ...prev, [field]: value }));
+  };
 
   const knownItem = items.find(
     (it) => it.item_name.toLowerCase() === form.item_name.trim().toLowerCase()
@@ -184,7 +187,10 @@ export default function AddPurchase() {
             value={form.item_name}
             onChange={(e) => {
               update('item_name', e.target.value);
-              setKindChoice(null);
+              // Typing the name of an item already in stock shows that item's type. A new
+              // name keeps whatever type was already chosen.
+              const typed = e.target.value.trim().toLowerCase();
+              if (items.some((it) => it.item_name.toLowerCase() === typed)) setKindChoice(null);
             }}
             maxLength={60}
             required

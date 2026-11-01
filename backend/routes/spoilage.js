@@ -26,7 +26,7 @@ async function resolveEntry(shop, body) {
     throw new BadRequestError('Item name is required');
   }
   if (!isSaneQuantity(body.quantity)) {
-    throw new BadRequestError(`Quantity must be between 0 and ${MAX_QUANTITY}`);
+    throw new BadRequestError(`Quantity must be more than 0 and at most ${MAX_QUANTITY}`);
   }
   if (!REASONS.includes(body.reason)) {
     throw new BadRequestError(`Reason must be one of: ${REASONS.join(', ')}`);
