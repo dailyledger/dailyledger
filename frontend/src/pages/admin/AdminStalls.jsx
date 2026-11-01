@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, Pencil, KeyRound, Power, Trash2 } from 'lucide-react';
+import { Plus, Pencil, KeyRound, Power, Trash2, FileDown } from 'lucide-react';
 import {
   adminGetStalls,
   adminCreateStall,
@@ -7,7 +7,9 @@ import {
   adminResetPassword,
   adminSetStallActive,
   adminDeleteStall,
+  adminGetScorecard,
 } from '../../api';
+import { downloadScorecard } from './scorecardPdf';
 
 const EMPTY_FORM = { name: '', phone: '', day_start_hour: 0, username: '', password: '' };
 
@@ -129,6 +131,19 @@ export default function AdminStalls() {
 
   const set = (patch) => setModal((m) => ({ ...m, ...patch }));
 
+  // A one-page summary for the judges, as a PDF.
+  const scorecard = async (stall) => {
+    setError('');
+    setNotice(`Preparing ${stall.name}'s scorecard...`);
+    try {
+      await downloadScorecard(await adminGetScorecard(stall.id, { period: 'all' }));
+      setNotice(`${stall.name}'s scorecard was downloaded.`);
+    } catch (err) {
+      setNotice('');
+      setError(`Could not create the scorecard: ${err.message}`);
+    }
+  };
+
   return (
     <div>
       <div className="a-page-head">
@@ -173,6 +188,9 @@ export default function AdminStalls() {
                   </td>
                   <td>
                     <div className="a-row-actions">
+                      <button className="a-btn a-btn-sm" title="Scorecard PDF" onClick={() => scorecard(stall)}>
+                        <FileDown size={14} /> Scorecard
+                      </button>
                       <button className="a-btn a-btn-sm" title="Edit" onClick={() => setModal({ kind: 'edit', stall, name: stall.name, phone: stall.phone, day_start_hour: stall.day_start_hour || 0 })}>
                         <Pencil size={14} /> Edit
                       </button>

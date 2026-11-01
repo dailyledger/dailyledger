@@ -16,6 +16,9 @@ const spoilageRouter = require('./routes/spoilage');
 const productionRouter = require('./routes/production');
 const dashboardRouter = require('./routes/dashboard');
 const adminRouter = require('./routes/admin');
+const adminSectionsRouter = require('./routes/adminSections');
+const adminLeaderboardRouter = require('./routes/adminLeaderboard');
+const { readSettings } = require('./routes/adminSections');
 
 if (!process.env.JWT_SECRET) {
   console.error('JWT_SECRET is not set in .env — refusing to start.');
@@ -59,6 +62,16 @@ app.get('/health', (req, res) => {
   });
 });
 
+// The event's name and tagline, shown on the login screens before anyone signs in.
+app.get('/api/public/event', async (req, res) => {
+  try {
+    const { name, tagline } = await readSettings();
+    res.json({ name, tagline });
+  } catch (err) {
+    res.json({ name: '', tagline: '' });
+  }
+});
+
 app.use('/api/auth', authRouter);
 
 app.use('/api/items', requireAuth, itemsRouter);
@@ -69,6 +82,8 @@ app.use('/api/spoilage', requireAuth, spoilageRouter);
 app.use('/api/production', requireAuth, productionRouter);
 app.use('/api/dashboard', requireAuth, dashboardRouter);
 app.use('/api/admin', requireAdmin, adminRouter);
+app.use('/api/admin', requireAdmin, adminSectionsRouter);
+app.use('/api/admin', requireAdmin, adminLeaderboardRouter);
 
 app.use((err, req, res, next) => {
   if (res.headersSent) return next(err);

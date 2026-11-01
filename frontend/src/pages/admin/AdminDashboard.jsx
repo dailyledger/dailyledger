@@ -1,100 +1,66 @@
-import { useEffect, useState } from 'react';
-import { Wallet, TrendingUp, Receipt, Percent, ArrowUpRight, ArrowDownRight, RefreshCw } from 'lucide-react';
-import { adminGetOverview, adminGetComparison, adminGetAnalytics, adminGetRecent } from '../../api';
+import { Wallet, TrendingUp, Receipt, Percent, Sparkles, AlertTriangle, Info } from 'lucide-react';
+import { adminGetOverview, adminGetComparison, adminGetAnalytics, adminGetRecent, adminGetInsights } from '../../api';
 import { formatCurrency } from '../../format';
 import { LineChart, BarChart, HBarList, Donut, SERIES } from './AdminCharts';
-import MultiSelect from './MultiSelect';
-import { useCustomerOptions } from './adminQuery';
+import { Kpi, Card, Delta, ScopeBar, useScope, useInterval, avatarColor, timeAgo } from './AdminUi';
 import useAdminData from './useAdminData';
 
-const PERIODS = [
-  { key: 'all', label: 'All time' },
-  { key: 'day', label: 'Today' },
-  { key: 'week', label: '7 days' },
-  { key: 'month', label: '30 days' },
-];
-
-const AVATAR_COLORS = ['#e8590c', '#2f9e6b', '#3b5bdb', '#f59f00', '#a64dd6', '#e0457b', '#12a594'];
-const avatarColor = (name) => AVATAR_COLORS[[...name].reduce((sum, c) => sum + c.charCodeAt(0), 0) % AVATAR_COLORS.length];
 const hourLabel = (hour) => `${hour % 12 === 0 ? 12 : hour % 12}${hour < 12 ? 'a' : 'p'}`;
 
-function timeAgo(value) {
-  const minutes = Math.round((Date.now() - new Date(value).getTime()) / 60000);
-  if (minutes < 1) return 'just now';
-  if (minutes < 60) return `${minutes} min ago`;
-  const hours = Math.round(minutes / 60);
-  if (hours < 24) return `${hours} hr ago`;
-  return new Date(value).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
-}
+const TONE_ICON = { good: Sparkles, warn: AlertTriangle, info: Info };
 
-/** "+12%" or "-5%" against the previous period; nothing when there is nothing to compare. */
-function Delta({ now, before, points }) {
-  if (before === null || before === undefined) return null;
-  let diff;
-  let label;
-  if (points) {
-    diff = now - before;
-    label = `${Math.abs(diff).toFixed(1)} pts`;
-  } else {
-    if (before === 0) return now === 0 ? null : <span className="a-delta up">New</span>;
-    diff = ((now - before) / Math.abs(before)) * 100;
-    label = `${Math.abs(diff).toFixed(0)}%`;
-  }
-  const up = diff >= 0;
-  return (
-    <span className={`a-delta ${up ? 'up' : 'down'}`} title="Compared with the previous period">
-      {up ? <ArrowUpRight size={13} /> : <ArrowDownRight size={13} />}
-      {label}
-    </span>
+function Insights({ items, loading }) {
+  const warn = items.filter((i) => i.tone === 'warn');
+  const good = items.filter((i) => i.tone !== 'warn');
+
+  const List = ({ list }) => (
+    <ul className="a-insights">
+      {list.map((i) => {
+        const Icon = TONE_ICON[i.tone] || Info;
+        return (
+          <li key={i.id} className={`tone-${i.tone}`}>
+            <span className="a-insight-icon">
+              <Icon size={16} />
+            </span>
+            <span>
+              <strong>{i.title}</strong>
+              <span>{i.text}</span>
+            </span>
+          </li>
+        );
+      })}
+    </ul>
   );
-}
 
-function Kpi({ icon: Icon, tone, label, value, negative, delta }) {
   return (
-    <div className="a-kpi">
-      <div className="a-kpi-top">
-        <span className={`a-kpi-icon ${tone}`}>
-          <Icon size={20} />
-        </span>
-        {delta}
-      </div>
-      <div className={`a-kpi-value${negative ? ' neg' : ''}`}>{value}</div>
-      <div className="a-kpi-label">{label}</div>
-    </div>
-  );
-}
-
-function Card({ title, sub, aside, children }) {
-  return (
-    <div className="a-card">
-      <h3 className="a-card-title">
-        {title}
-        {aside}
-      </h3>
-      {sub && <p className="a-card-sub">{sub}</p>}
-      {children}
-    </div>
+    <>
+      <Card title="Highlights" sub="What the numbers say right now">
+        {good.length ? <List list={good} /> : <div className="a-empty">{loading ? 'Loading...' : 'Nothing to highlight yet.'}</div>}
+      </Card>
+      <Card
+        title="Alerts"
+        sub={warn.length ? 'Worth a look' : 'All clear'}
+        aside={warn.length > 0 && <span className="a-pill off">{warn.length}</span>}
+      >
+        {warn.length ? <List list={warn} /> : <div className="a-empty">{loading ? 'Loading...' : 'No alerts right now.'}</div>}
+      </Card>
+    </>
   );
 }
 
 export default function AdminDashboard() {
-  const [period, setPeriod] = useState('all');
-  const [stalls, setStalls] = useState([]);
-  const [tick, setTick] = useState(0);
-  const options = useCustomerOptions();
+  const scope = useScope('all');
+  const { query, tick } = scope;
 
-  // The activity feed refreshes by itself every half minute.
-  useEffect(() => {
-    const timer = setInterval(() => setTick((t) => t + 1), 30000);
-    return () => clearInterval(timer);
-  }, []);
+  // The activity feed and alerts refresh by themselves every half minute.
+  useInterval(scope.reload, 30000);
 
-  const query = { period, stalls: stalls.join(',') };
   const key = JSON.stringify(query);
   const overview = useAdminData(() => adminGetOverview(query), [key, tick]);
   const comparison = useAdminData(() => adminGetComparison(query), [key, tick]);
   const analytics = useAdminData(() => adminGetAnalytics(query), [key, tick]);
   const recent = useAdminData(() => adminGetRecent({ stalls: query.stalls, limit: 8 }), [query.stalls, tick]);
+  const insights = useAdminData(() => adminGetInsights(query), [key, tick]);
 
   const totals = overview.data?.totals;
   const before = overview.data?.previous;
@@ -102,11 +68,7 @@ export default function AdminDashboard() {
   const a = analytics.data;
   const hasSales = a && a.trend.length > 0;
 
-  const stallRows = (comparison.data?.stalls || []).map((s) => ({
-    id: s.id,
-    label: s.name,
-    value: s.net_profit,
-  }));
+  const stallRows = (comparison.data?.stalls || []).map((s) => ({ id: s.id, label: s.name, value: s.net_profit }));
   const top = (comparison.data?.stalls || []).filter((s) => s.revenue > 0).slice(0, 3);
 
   return (
@@ -116,21 +78,7 @@ export default function AdminDashboard() {
           <h1 className="a-title">Dashboard</h1>
           <p className="a-subtitle">How every stall is doing, at a glance</p>
         </div>
-        <div className="a-actions">
-          <div style={{ width: 250 }}>
-            <MultiSelect title="Customers" options={options} value={stalls} onChange={setStalls} placeholder="All customers" />
-          </div>
-          <div className="a-seg">
-            {PERIODS.map((p) => (
-              <button key={p.key} className={period === p.key ? 'active' : ''} onClick={() => setPeriod(p.key)}>
-                {p.label}
-              </button>
-            ))}
-          </div>
-          <button className="a-btn" onClick={() => setTick((t) => t + 1)} title="Reload data">
-            <RefreshCw size={15} /> Reload
-          </button>
-        </div>
+        <ScopeBar scope={scope} />
       </div>
 
       {error && <div className="a-error">{error}</div>}
@@ -176,14 +124,8 @@ export default function AdminDashboard() {
               sub="Revenue and profit by day, cash and credit sales combined"
               aside={
                 <span className="a-legend">
-                  <span>
-                    <span className="a-dot" style={{ background: SERIES.orange }} />
-                    Revenue
-                  </span>
-                  <span>
-                    <span className="a-dot" style={{ background: SERIES.green }} />
-                    Profit
-                  </span>
+                  <span><span className="a-dot" style={{ background: SERIES.orange }} />Revenue</span>
+                  <span><span className="a-dot" style={{ background: SERIES.green }} />Profit</span>
                 </span>
               }
             >
@@ -280,6 +222,8 @@ export default function AdminDashboard() {
               <div className="a-empty">{comparison.loading ? 'Loading...' : 'No sales yet.'}</div>
             )}
           </Card>
+
+          <Insights items={insights.data?.items || []} loading={insights.loading} />
 
           <Card title="Recent activity" sub="Updates every 30 seconds">
             {recent.data?.rows.length ? (

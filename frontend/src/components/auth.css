@@ -273,3 +273,14 @@
       #fbf8f4;
   }
 }
+
+.auth-event {
+  padding: 6px 16px;
+  border-radius: 999px;
+  background: #fff;
+  color: #9a3412;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
