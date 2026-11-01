@@ -187,6 +187,17 @@ export const adminDeleteStall = (id, confirm_name) => del(`/admin/stalls/${id}`,
 export const adminGetComparison = (filters) => request(withParams('/admin/comparison', filters));
 export const adminGetOverview = (filters) => request(withParams('/admin/overview', filters));
 export const adminGetRecent = (filters) => request(withParams('/admin/recent', filters));
+export const adminGetSalesOverview = (filters) => request(withParams('/admin/sales/overview', filters));
+export const adminGetPurchasesOverview = (filters) => request(withParams('/admin/purchases/overview', filters));
+export const adminGetInventoryOverview = (filters) => request(withParams('/admin/inventory/overview', filters));
+export const adminGetCreditWastage = (filters) => request(withParams('/admin/credit-wastage', filters));
+export const adminCompare = (params) => request(withParams('/admin/compare', params));
+export const adminGetLeaderboard = (filters) => request(withParams('/admin/leaderboard', filters));
+export const adminGetInsights = (filters) => request(withParams('/admin/insights', filters));
+export const adminGetScorecard = (id, filters) => request(withParams(`/admin/scorecard/${id}`, filters));
+export const adminGetSettings = () => request('/admin/settings');
+export const adminSaveSettings = (payload) => request('/admin/settings', { method: 'PUT', body: JSON.stringify(payload) });
+export const getPublicEvent = () => request('/public/event');
 export const adminGetAnalytics = (filters) => request(withParams('/admin/analytics', filters));
 export const adminGetReport = (kind, filters) =>
   request(withParams(`/admin/reports/${kind}`, filters));

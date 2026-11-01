@@ -95,7 +95,13 @@ export function LineChart({ data, colorA = SERIES.orange, colorB = SERIES.green 
               </circle>
             )}
             {labelAt.has(i) && (
-              <text className="a-axis" x={x(i)} y={H - 6} textAnchor="middle">
+              <text
+                className="a-axis"
+                x={x(i)}
+                y={H - 6}
+                // Keep the first and last labels inside the chart instead of clipping them.
+                textAnchor={data.length > 1 && i === 0 ? 'start' : data.length > 1 && i === data.length - 1 ? 'end' : 'middle'}
+              >
                 {d.label}
               </text>
             )}
