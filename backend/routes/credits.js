@@ -44,7 +44,7 @@ async function resolveLines(shop, rawItems, previousLines = []) {
     }
     if (!isSaneQuantity(raw.quantity)) {
       throw new BadRequestError(
-        `Quantity for "${raw.item_name}" must be between 0 and ${MAX_QUANTITY}`
+        `Quantity for "${raw.item_name}" must be more than 0 and at most ${MAX_QUANTITY}`
       );
     }
     if (!(raw.price_per_unit > 0)) {

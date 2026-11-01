@@ -60,7 +60,7 @@ function resolvePurchase(body) {
     throw new BadRequestError(`Vendor name must be ${MAX_PARTY_NAME} characters or fewer`);
   }
   if (!isSaneQuantity(body.quantity)) {
-    throw new BadRequestError(`Quantity must be between 0 and ${MAX_QUANTITY}`);
+    throw new BadRequestError(`Quantity must be more than 0 and at most ${MAX_QUANTITY}`);
   }
   if (!['kg', 'litre', 'piece'].includes(body.unit_type)) {
     throw new BadRequestError('Unit type must be kg, litre or piece');

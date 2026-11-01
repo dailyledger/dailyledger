@@ -143,6 +143,16 @@ export default function Inventory() {
                         {row.item_name}
                         {row.kind === 'raw' && <span className="badge badge-kind"> raw material</span>}
                         {row.kind === 'cooked' && <span className="badge badge-kind"> cooked</span>}
+                        {row.kind !== 'cooked' && (
+                          <button
+                            type="button"
+                            className="btn btn-secondary btn-sm"
+                            style={{ display: 'block', marginTop: 6 }}
+                            onClick={() => setToChange(row)}
+                          >
+                            {row.kind === 'raw' ? 'Make resale' : 'Make raw'}
+                          </button>
+                        )}
                       </td>
                       <td>{row.unit_type}</td>
                       <td className="num">{row.stock_quantity}</td>
@@ -157,16 +167,6 @@ export default function Inventory() {
                         )}
                         {outOfStock && <span className="badge badge-out-of-stock">No Stock</span>}
                         {lowStock && <span className="badge badge-unpaid">Low Stock</span>}
-                        {row.kind !== 'cooked' && (
-                          <button
-                            type="button"
-                            className="btn btn-secondary btn-sm"
-                            style={{ marginLeft: 6 }}
-                            onClick={() => setToChange(row)}
-                          >
-                            {row.kind === 'raw' ? 'Make resale' : 'Make raw'}
-                          </button>
-                        )}
                       </td>
                     </tr>
                   );

@@ -1197,3 +1197,22 @@ button, input, select, textarea {
   transform: scale(0.97);
   box-shadow: 0 2px 6px rgba(37, 99, 235, 0.3);
 }
+
+/* Between phone and wide desktop there are eight nav items but not room for the roomy
+   top bar: keep the compact icon-over-label layout until 1100px. */
+@media (min-width: 768px) and (max-width: 1099px) {
+  .nav {
+    gap: 0;
+    padding: 6px 8px;
+  }
+
+  .nav-link {
+    flex: 1;
+    flex-direction: column;
+    padding: 6px 4px;
+    gap: 2px;
+    font-size: 0.72rem;
+    border-radius: 10px;
+    min-width: 0;
+  }
+}

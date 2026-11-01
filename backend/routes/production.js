@@ -46,7 +46,7 @@ async function resolveBatch(shop, body) {
     throw new BadRequestError('Unit must be kg, litre or piece');
   }
   if (!isSaneQuantity(body.quantity)) {
-    throw new BadRequestError(`Quantity made must be between 0 and ${MAX_QUANTITY}`);
+    throw new BadRequestError(`Quantity made must be more than 0 and at most ${MAX_QUANTITY}`);
   }
   if (!isPositiveNumber(body.selling_price) || !isSaneAmount(body.selling_price)) {
     throw new BadRequestError('Selling price must be greater than 0');
@@ -81,7 +81,7 @@ async function resolveBatch(shop, body) {
     }
     if (!isSaneQuantity(raw.quantity)) {
       throw new BadRequestError(
-        `Quantity used for "${raw.item_name}" must be between 0 and ${MAX_QUANTITY}`
+        `Quantity used for "${raw.item_name}" must be more than 0 and at most ${MAX_QUANTITY}`
       );
     }
 
