@@ -258,7 +258,7 @@ export default function AdminReports() {
               options={options}
               value={form.customers}
               onChange={(customers) => set({ customers })}
-              placeholder="Select Customers... (none = all)"
+              placeholder="All customers"
             />
           </div>
           <div className="a-field">

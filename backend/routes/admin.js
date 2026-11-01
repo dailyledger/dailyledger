@@ -85,6 +85,32 @@ function dateCondition(query) {
 }
 
 /**
+ * The window just before the selected one and as long as it, for "vs previous period"
+ * badges. Null for "all time", where there is nothing to compare with.
+ */
+function previousDateCondition(query) {
+  const { from, to, period } = query;
+  const DAY = 864e5;
+  const key = (date) => date.toISOString().slice(0, 10);
+  const at = (value) => new Date(`${value}T00:00:00.000Z`);
+
+  if (from || to) {
+    if (!from || !to) return null;
+    const days = Math.round((at(to) - at(from)) / DAY) + 1;
+    return {
+      $gte: key(new Date(at(from).getTime() - days * DAY)),
+      $lte: key(new Date(at(from).getTime() - DAY)),
+    };
+  }
+
+  const span = { day: 1, week: 7, month: 30 }[period];
+  if (!span) return null;
+  // Newest first: [0..span-1] is the current window, [span..2*span-1] the one before it.
+  const keys = keysBack(span * 2, DEFAULT_TIMEZONE, 0);
+  return { $gte: keys[keys.length - 1], $lte: keys[span] };
+}
+
+/**
  * Stalls matching the optional filters: `stalls` (comma-separated ids, what the
  * multi-select sends), `stall` (a single id) and `owner` (name search). No filter
  * means every stall.
@@ -318,7 +344,27 @@ router.get('/overview', async (req, res) => {
           (collectedPay.find((p) => p._id === mode)?.total || 0)
       );
 
+    // The same figures for the period just before, so the dashboard can show +12% / -5%.
+    let previous = null;
+    const before = previousDateCondition(req.query);
+    if (before) {
+      const prevMatch = { shop: { $in: shops.map((x) => x._id) }, date_key: before, voided_at: null };
+      const [prevByShop, prevSales, prevCredits] = await Promise.all([
+        summarizeByShop(prevMatch),
+        Sale.countDocuments(prevMatch),
+        Credit.countDocuments(prevMatch),
+      ]);
+      const prev = sumTotals([...prevByShop.values()]);
+      previous = {
+        revenue: prev.revenue,
+        net_profit: prev.net_profit,
+        margin_pct: marginPct(prev.net_profit, prev.revenue),
+        transactions: prevSales + prevCredits,
+      };
+    }
+
     res.json({
+      previous,
       totals: {
         ...totals,
         margin_pct: marginPct(totals.net_profit, totals.revenue),
@@ -330,6 +376,48 @@ router.get('/overview', async (req, res) => {
       active_stalls: shops.filter((s) => s.active !== false).length,
       today: todayKey(DEFAULT_TIMEZONE, 0),
     });
+  } catch (err) {
+    sendError(res, err);
+  }
+});
+
+// The latest happenings across the selected stalls, newest first.
+router.get('/recent', async (req, res) => {
+  try {
+    const shops = await selectedShops(req.query);
+    const shopById = new Map(shops.map((x) => [String(x._id), x]));
+    const limit = Math.min(Math.max(Number(req.query.limit) || 8, 1), 30);
+    const match = { shop: { $in: shops.map((x) => x._id) }, voided_at: null };
+    const latest = (Model) => Model.find(match).sort({ date: -1 }).limit(limit).lean();
+
+    const [sales, credits, saleReturns, creditReturns, payments] = await Promise.all([
+      latest(Sale),
+      latest(Credit),
+      latest(SalesReturn),
+      latest(CreditReturn),
+      latest(CreditPayment),
+    ]);
+
+    const row = (doc, type, amount, extra = {}) => ({
+      id: `${type}-${doc._id}`,
+      stall: shopById.get(String(doc.shop))?.name || 'Unknown',
+      type,
+      amount: round2(amount),
+      date: doc.date,
+      ...extra,
+    });
+
+    const rows = [
+      ...sales.map((d) => row(d, 'Sale', d.total_amount, { mode: d.payment_mode })),
+      ...credits.map((d) => row(d, 'Credit sale', d.total_amount, { mode: 'credit' })),
+      ...saleReturns.map((d) => row(d, 'Return', -d.refund_amount)),
+      ...creditReturns.map((d) => row(d, 'Credit return', -d.refund_amount)),
+      ...payments.map((d) => row(d, d.kind === 'refund' ? 'Refund' : 'Credit payment', d.amount, { mode: d.payment_mode })),
+    ]
+      .sort((x, y) => new Date(y.date) - new Date(x.date))
+      .slice(0, limit);
+
+    res.json({ rows });
   } catch (err) {
     sendError(res, err);
   }

@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate, NavLink } from 'react-router-dom';
-import { LayoutDashboard, Store, BarChart3, LogOut, ShieldCheck } from 'lucide-react';
+import { LayoutDashboard, Store, BarChart3, LogOut } from 'lucide-react';
 import { useAuth } from '../../AuthContext';
+import Logo from '../../components/Logo';
 import AdminDashboard from './AdminDashboard';
 import AdminStalls from './AdminStalls';
 import AdminReports from './AdminReports';
@@ -19,16 +20,10 @@ export default function AdminApp() {
     <div className="a-shell">
       <aside className="a-side">
         <div className="a-side-head">
-          <span className="a-brand-mark">
-            <ShieldCheck size={22} />
-          </span>
-          <div>
-            <div className="a-brand-name">DailyLedger</div>
-            <div className="a-brand-sub">Admin console</div>
-          </div>
+          <Logo light size={40} subtitle="Admin console" />
         </div>
 
-        <div className="a-side-label">MODULES</div>
+        <div className="a-side-label">MENU</div>
         <nav className="a-nav">
           {NAV_ITEMS.map(({ to, label, Icon, end }) => (
             <NavLink
@@ -52,7 +47,7 @@ export default function AdminApp() {
             </div>
           </div>
           <button type="button" className="a-logout" onClick={logout}>
-            <LogOut size={19} />
+            <LogOut size={18} />
             <span>Logout</span>
           </button>
         </div>
