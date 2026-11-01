@@ -1,6 +1,16 @@
+import { useId } from 'react';
+
 /*
- * Small dependency-free SVG/CSS charts for the admin dashboard.
+ * Small dependency-free SVG/CSS charts for the admin console. Colours come from the
+ * theme (admin.css); series colours are passed in so a comparison can use two.
  */
+
+export const SERIES = {
+  orange: '#e8590c',
+  green: '#2f9e6b',
+  blue: '#3b5bdb',
+  amber: '#f59f00',
+};
 
 const compact = (n) => {
   const v = Math.abs(n);
@@ -9,56 +19,83 @@ const compact = (n) => {
   return String(Math.round(n));
 };
 
-/** Two-series line chart (revenue + profit by day). `data` is [{ label, a, b }]. */
-export function LineChart({ data }) {
-  const W = 640;
-  const H = 230;
+/** Smooth line through the points (Catmull-Rom turned into bezier segments). */
+function smoothPath(points) {
+  if (points.length < 3) return points.map((p, i) => `${i ? 'L' : 'M'}${p.x},${p.y}`).join(' ');
+  let d = `M${points[0].x},${points[0].y}`;
+  for (let i = 0; i < points.length - 1; i += 1) {
+    const p0 = points[i - 1] || points[i];
+    const p1 = points[i];
+    const p2 = points[i + 1];
+    const p3 = points[i + 2] || p2;
+    const c1x = p1.x + (p2.x - p0.x) / 6;
+    const c1y = p1.y + (p2.y - p0.y) / 6;
+    const c2x = p2.x - (p3.x - p1.x) / 6;
+    const c2y = p2.y - (p3.y - p1.y) / 6;
+    d += ` C${c1x},${c1y} ${c2x},${c2y} ${p2.x},${p2.y}`;
+  }
+  return d;
+}
+
+/**
+ * Line chart with up to two series. `data` is [{ label, a, b }]; `b` is optional.
+ * The first series gets a soft fill underneath.
+ */
+export function LineChart({ data, colorA = SERIES.orange, colorB = SERIES.green }) {
+  const gradId = `fill-${useId().replace(/:/g, '')}`;
+  const W = 520;
+  const H = 250;
   const pad = { l: 44, r: 12, t: 12, b: 26 };
   const innerW = W - pad.l - pad.r;
   const innerH = H - pad.t - pad.b;
+  const hasB = data.some((d) => d.b !== undefined && d.b !== null);
 
-  const values = data.flatMap((d) => [d.a, d.b]);
+  const values = data.flatMap((d) => [d.a, hasB ? d.b || 0 : d.a]);
   const max = Math.max(...values, 1);
   const min = Math.min(...values, 0);
   const span = max - min || 1;
 
   const x = (i) => pad.l + (data.length === 1 ? innerW / 2 : (i / (data.length - 1)) * innerW);
   const y = (v) => pad.t + innerH - ((v - min) / span) * innerH;
-  const line = (key) => data.map((d, i) => `${x(i)},${y(d[key])}`).join(' ');
-  const area = `${pad.l},${y(min)} ${line('a')} ${x(data.length - 1)},${y(min)}`;
+  const pointsA = data.map((d, i) => ({ x: x(i), y: y(d.a) }));
+  const pointsB = hasB ? data.map((d, i) => ({ x: x(i), y: y(d.b || 0) })) : [];
   const ticks = [0, 1, 2, 3].map((t) => min + (span * t) / 3);
   const labelAt = new Set([0, Math.floor((data.length - 1) / 2), data.length - 1]);
+  const lineA = smoothPath(pointsA);
+  const area = `${lineA} L${x(data.length - 1)},${y(min)} L${pad.l},${y(min)} Z`;
 
   return (
     <div className="a-chart">
-      <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Revenue and profit by day">
+      <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Trend chart">
         <defs>
-          <linearGradient id="a-area" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#2dd4bf" stopOpacity="0.28" />
-            <stop offset="100%" stopColor="#2dd4bf" stopOpacity="0" />
+          <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={colorA} stopOpacity="0.22" />
+            <stop offset="100%" stopColor={colorA} stopOpacity="0" />
           </linearGradient>
         </defs>
         {ticks.map((t) => (
           <g key={t}>
-            <line x1={pad.l} x2={W - pad.r} y1={y(t)} y2={y(t)} stroke="#263140" strokeDasharray="3 4" />
-            <text x={pad.l - 8} y={y(t) + 4} textAnchor="end" fontSize="10" fill="#8b98a8">
+            <line className="a-grid-line" x1={pad.l} x2={W - pad.r} y1={y(t)} y2={y(t)} strokeDasharray="3 5" />
+            <text className="a-axis" x={pad.l - 8} y={y(t) + 4} textAnchor="end">
               {compact(t)}
             </text>
           </g>
         ))}
-        {data.length > 1 && <polygon points={area} fill="url(#a-area)" />}
-        <polyline points={line('a')} fill="none" stroke="#2dd4bf" strokeWidth="2.2" strokeLinejoin="round" />
-        <polyline points={line('b')} fill="none" stroke="#60a5fa" strokeWidth="2.2" strokeLinejoin="round" />
+        {data.length > 1 && <path d={area} fill={`url(#${gradId})`} />}
+        <path d={lineA} fill="none" stroke={colorA} strokeWidth="2.6" strokeLinecap="round" />
+        {hasB && <path d={smoothPath(pointsB)} fill="none" stroke={colorB} strokeWidth="2.6" strokeLinecap="round" />}
         {data.map((d, i) => (
           <g key={d.label}>
-            <circle cx={x(i)} cy={y(d.a)} r="3" fill="#2dd4bf">
-              <title>{`${d.label}: revenue ${compact(d.a)}`}</title>
+            <circle cx={x(i)} cy={y(d.a)} r="3.4" fill="#fff" stroke={colorA} strokeWidth="2">
+              <title>{`${d.label}: ${compact(d.a)}`}</title>
             </circle>
-            <circle cx={x(i)} cy={y(d.b)} r="3" fill="#60a5fa">
-              <title>{`${d.label}: profit ${compact(d.b)}`}</title>
-            </circle>
+            {hasB && (
+              <circle cx={x(i)} cy={y(d.b || 0)} r="3.4" fill="#fff" stroke={colorB} strokeWidth="2">
+                <title>{`${d.label}: ${compact(d.b || 0)}`}</title>
+              </circle>
+            )}
             {labelAt.has(i) && (
-              <text x={x(i)} y={H - 6} textAnchor="middle" fontSize="10" fill="#8b98a8">
+              <text className="a-axis" x={x(i)} y={H - 6} textAnchor="middle">
                 {d.label}
               </text>
             )}
@@ -70,11 +107,11 @@ export function LineChart({ data }) {
 }
 
 /** Vertical bars; the tallest (or `highlight`) bar is drawn in the accent colour. */
-export function BarChart({ data, valueKey, labelKey, highlight }) {
+export function BarChart({ data, valueKey, labelKey, highlight, labelEvery = 1 }) {
   const max = Math.max(...data.map((d) => d[valueKey]), 0);
   return (
     <div className="a-bars" role="img">
-      {data.map((d) => {
+      {data.map((d, index) => {
         const pct = max > 0 ? (d[valueKey] / max) * 100 : 0;
         return (
           <div
@@ -83,7 +120,7 @@ export function BarChart({ data, valueKey, labelKey, highlight }) {
             title={`${d[labelKey]}: ${compact(d[valueKey])}`}
           >
             <div className="a-bar" style={{ height: `${Math.max(pct, d[valueKey] > 0 ? 3 : 0)}%` }} />
-            <span className="a-bar-label">{d[labelKey]}</span>
+            {index % labelEvery === 0 && <span className="a-bar-label">{d[labelKey]}</span>}
           </div>
         );
       })}
@@ -92,7 +129,7 @@ export function BarChart({ data, valueKey, labelKey, highlight }) {
 }
 
 /** Ranked horizontal bars. `rows` is [{ id, label, sub, value }]. */
-export function HBarList({ rows, format }) {
+export function HBarList({ rows, format, color }) {
   const max = Math.max(...rows.map((r) => Math.abs(r.value)), 0);
   return (
     <div className="a-hbars">
@@ -107,7 +144,7 @@ export function HBarList({ rows, format }) {
           <div className="a-hbar-track">
             <div
               className={`a-hbar-fill${r.value < 0 ? ' neg' : ''}`}
-              style={{ width: `${max > 0 ? (Math.abs(r.value) / max) * 100 : 0}%` }}
+              style={{ width: `${max > 0 ? (Math.abs(r.value) / max) * 100 : 0}%`, ...(color && r.value >= 0 ? { background: color } : {}) }}
             />
           </div>
         </div>
@@ -125,8 +162,8 @@ export function Donut({ segments, format }) {
 
   return (
     <div className="a-donut">
-      <svg viewBox="0 0 150 150" role="img" aria-label="Payment split">
-        <circle cx="75" cy="75" r={R} fill="none" stroke="#1b232d" strokeWidth="16" />
+      <svg viewBox="0 0 150 150" role="img" aria-label="Breakdown">
+        <circle className="a-donut-track" cx="75" cy="75" r={R} fill="none" strokeWidth="16" />
         {total > 0 &&
           segments.map((s) => {
             const len = (s.value / total) * C;
@@ -147,10 +184,10 @@ export function Donut({ segments, format }) {
             offset += len;
             return el;
           })}
-        <text x="75" y="72" textAnchor="middle" fontSize="11" fill="#8b98a8">
+        <text className="a-donut-total-label" x="75" y="72" textAnchor="middle" fontSize="11">
           Total
         </text>
-        <text x="75" y="90" textAnchor="middle" fontSize="15" fontWeight="700" fill="#e6edf3">
+        <text className="a-donut-total" x="75" y="91" textAnchor="middle" fontSize="16" fontWeight="800">
           {compact(total)}
         </text>
       </svg>

@@ -186,6 +186,7 @@ export const adminDeleteStall = (id, confirm_name) => del(`/admin/stalls/${id}`,
 
 export const adminGetComparison = (filters) => request(withParams('/admin/comparison', filters));
 export const adminGetOverview = (filters) => request(withParams('/admin/overview', filters));
+export const adminGetRecent = (filters) => request(withParams('/admin/recent', filters));
 export const adminGetAnalytics = (filters) => request(withParams('/admin/analytics', filters));
 export const adminGetReport = (kind, filters) =>
   request(withParams(`/admin/reports/${kind}`, filters));
